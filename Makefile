@@ -1,16 +1,18 @@
 # Makefile for building and pushing Docker image
 
 # Define the script files
-BUILD_SCRIPT = ./build_image.sh
-PUSH_SCRIPT = ./push_image.sh
+BUILD_SCRIPT = ./scripts/build.sh
+PUSH_SCRIPT = ./scripts/push.sh
 
 # Targets
-# NOTE: @ is for supressing the command from being displayed in the output.
+
 build:
+	@chmod +x $(BUILD_SCRIPT)
 	@echo "Building Docker image..."
 	@$(BUILD_SCRIPT)
 
 push:
+	@chmod +x $(PUSH_SCRIPT)
 	@echo "Pushing Docker image to the repository..."
 	@$(PUSH_SCRIPT)
 
