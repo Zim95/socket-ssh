@@ -32,3 +32,8 @@ To run locally you can do one of the following:
         -p 0.0.0.0:8000:8000 \
         browseterm-socket:latest
     ```
+
+# TODOS
+1. Resolve bug: sudo apt-get install, top require enter to be pressed before receiving data from shell.
+2. Add type hints properly.
+3. Resolve bug: When running inside docker container, it cannot connect to localhost which refers to outside the container.
