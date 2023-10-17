@@ -37,11 +37,14 @@ To run locally outside the container you can do the following:
     ```
     python app.py
     ```
+    This will run our socket server on `0.0.0.0:8000`
 
 3. Open up another terminal and run the test client:
     ```
     python test_client/test_client_server.py
     ```
+    This will run our test_client on `0.0.0.0:8375`.
+    Open the browser and type `0.0.0.0:8375` to view the client.
 
 # TODOS
 1. Resolve bug: sudo apt-get install, top require enter to be pressed before receiving data from shell.
