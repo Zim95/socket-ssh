@@ -1,5 +1,5 @@
 # BrowseTerm Socket
-A socket server to connect to SSH server as per the data provided.
+Web Based Terminal using a socket server to connect to SSH server as per the data provided.
 
 # How to build
 Run the following command to build the image
