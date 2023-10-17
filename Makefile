@@ -19,3 +19,13 @@ push:
 buildpush: build push
 
 .PHONY: build push buildpush
+
+# demo stuff
+BUILD_TEST_SSH_CONTAINER_SCRIPT = ./test_ssh_container/test_ssh_build.sh
+RUN_TEST_SSH_CONTAINER_SCRIPT = ./test_ssh_container/test_ssh_run.sh
+
+runtestsshcontainer:
+	@chmod +x $(BUILD_TEST_SSH_CONTAINER_SCRIPT)
+	@chmod +x $(RUN_TEST_SSH_CONTAINER_SCRIPT)
+	@$(BUILD_TEST_SSH_CONTAINER_SCRIPT)
+	@$(RUN_TEST_SSH_CONTAINER_SCRIPT)

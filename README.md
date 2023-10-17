@@ -21,21 +21,29 @@ make buildpush
 ```
 NOTE: Push only works for people who know the password or have access to PAT. Therefore, this step also requires people to know the password or have access to PAT.
 
-# How to run locally
-To run locally you can do one of the following:
-1. Run locally with Python.
+# How to run locally outside the container
+Requirements:
+    - Docker needs to be installed
+    - Create a virtual environment and hit: `pip install -r requirements.txt`.
+
+To run locally outside the container you can do the following:
+1. Create the test ssh container:
+    ```
+    make runtestsshcontainer
+    ```
+    This will build the container, run it on `0.0.0.0:2223`.
+
+2. Open up a terminal and run the python socket server:
     ```
     python app.py
     ```
-2. Run inside container. Make sure the image is built prior to this.
+
+3. Open up another terminal and run the test client:
     ```
-    docker container run -d \
-        --name browseterm-socket \
-        -p 0.0.0.0:8000:8000 \
-        browseterm-socket:latest
+    python test_client/test_client_server.py
     ```
 
 # TODOS
 1. Resolve bug: sudo apt-get install, top require enter to be pressed before receiving data from shell.
 2. Add type hints properly.
-3. Resolve bug: When running inside docker container, it cannot connect to localhost which refers to outside the container.
+3. Add a way to run server, client and ssh_container inside docker.
