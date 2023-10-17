@@ -48,5 +48,11 @@ To run locally outside the docker container you can do the following:
 
 # TODOS
 1. Resolve bug: sudo apt-get install, top require enter to be pressed before receiving data from shell.
-2. Add type hints properly.
+2. Low priority: Add type hints properly.
 3. Add a way to run server, client and ssh_container inside docker.
+4. Allow private key connection to ssh_container.
+5. Add security in websocket layer.
+6. Scale websockets: Loadbalancer, workers?
+7. Deploy on k8s
+8. Add deployment in Docker with docker networks.
+
