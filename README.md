@@ -1,5 +1,5 @@
 # BrowseTerm Socket
-Web Based Terminal using a socket server to connect to SSH server as per the data provided.
+WebSocket server that connects to SSH Servers and provides an socket based SSH Interface to SSH Servers. Can be used by Web Based Terminal Renderers like xterm.js.
 
 # How to build
 Run the following command to build the image
