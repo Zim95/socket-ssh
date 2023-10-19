@@ -46,13 +46,14 @@ To run locally outside the docker container you can do the following:
     This will run our test_client on `0.0.0.0:8375`.
     Open the browser and type `0.0.0.0:8375` to view the client.
 
-# TODOS
-1. Resolve bug: sudo apt-get install, top require enter to be pressed before receiving data from shell.
-2. Low priority: Add type hints properly.
-3. Add a way to run server, client and ssh_container inside docker.
-4. Allow private key connection to ssh_container.
-5. Add security in websocket layer.
-6. Scale websockets: Loadbalancer, workers?
-7. Deploy on k8s
-8. Add deployment in Docker with docker networks.
 
+# BUGS:
+1. Fix the top and apt-install command. Read output without having to hit enter.
+
+
+# Concerns
+1. Scaling websockets.
+2. Securing websockets with SSL.
+3. Securing websockets endpoint with AUTH.
+4. Deploying locally for test.
+5. Deploying on k8s
