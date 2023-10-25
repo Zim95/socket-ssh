@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the image and tag
-IMAGE_NAME="browseterm-socket"
+IMAGE_NAME="socket-ssh"
 TAG="latest"
 REPO_NAME="zim95"
 
