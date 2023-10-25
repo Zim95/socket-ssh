@@ -1,4 +1,4 @@
-# BrowseTerm Socket
+# Socket SSH
 WebSocket server that connects to SSH Servers and provides an socket based SSH Interface to SSH Servers. Can be used by Web Based Terminal Renderers like xterm.js.
 
 # How to build
