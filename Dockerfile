@@ -1,13 +1,12 @@
-FROM python:3.11-slim
+FROM node:10-alpine
 
-RUN mkdir app/
-COPY . /app/
+RUN mkdir app
 WORKDIR /app
 
-# Install build tools
-RUN apt-get update && apt-get install -y build-essential
-# Install requirements.txt
-RUN pip install -r requirements.txt
+COPY . .
 
+RUN npm install
 
-CMD [ "python", "app.py"]
+EXPOSE 8000
+
+CMD ["node", "app.js"]

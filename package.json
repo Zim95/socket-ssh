@@ -1,0 +1,29 @@
+{
+  "name": "socket-ssh",
+  "version": "1.0.0",
+  "description": "WebSocket server that connects to SSH Servers and provides an socket based SSH Client. Can be used by Terminal Renderers like xterm.js.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "build": "./scripts/build.sh",
+    "push": "./scripts/push.sh",
+    "dockerrun": "./scripts/create-network.sh; ./scripts/run-docker.sh",
+    "tscbuild": "./test_ssh_container/test_ssh_build.sh",
+    "tscrun": "./test_ssh_container/test_ssh_run.sh",
+    "tscechoip": "docker container inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker container ls -qa --filter 'name=test_ssh_ubuntu_container')",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nodejs",
+    "ssh-server",
+    "websocket-server",
+    "webterminal"
+  ],
+  "author": "Namah Shrestha",
+  "license": "ISC",
+  "dependencies": {
+    "nodemon": "^3.0.2",
+    "ssh2": "^1.15.0",
+    "ws": "^8.16.0"
+  }
+}

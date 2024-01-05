@@ -8,7 +8,7 @@ RUN mkdir /var/run/sshd
 EXPOSE 22
 
 # Copy custom entrypoint script
-COPY ./ubuntu_setup/ubuntu.entrypoint.sh /entrypoint.sh
+COPY ./test_ssh_container/ubuntu.entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Specify the entrypoint script

@@ -4,51 +4,61 @@ WebSocket server that connects to SSH Servers and provides an socket based SSH I
 # How to build
 Run the following command to build the image
 ```
-make build
+npm run build
 ```
 
 # How to push
 Run the following command to push to docker repository
 ```
-make push
+npm run push
 ```
 NOTE: Push only works for people who know the password or have access to PAT.
 
-# How to build and push
-Run the following command to build the image and push to repository
-```
-make buildpush
-```
-NOTE: Push only works for people who know the password or have access to PAT. Therefore, this step also requires people to know the password or have access to PAT.
 
 # How to run locally
 - Requirements:
-  - Docker needs to be installed
-  - Create a virtual environment and hit: `pip install -r requirements.txt`.
+  - Docker needs to be installed.
 
-To run locally outside the docker container you can do the following:
-1. Create the test ssh container:
+Here are the steps to run locally:
+1. Create the test ssh container. If you need to build the container hit:
     ```
-    make runtestsshcontainer
+    npm run tscbuild
     ```
-    This will build the container, run it on `0.0.0.0:2223`.
+    This command will build the docker image.
+    Once the image is built, hit:
+    ```
+    npm run tscrun
+    ```
+    This will build the container, run it on `0.0.0.0:2223`. You can now ssh into test ubuntu ssh server by hitting:
+    ```
+    ssh ubuntu@localhost -p 2223
+    ```
+    However, for the ssh socket, we need the internal ip address. So to get the internal ip address, run:
+    ```
+    npm run tscechoip
+    ```
+    This will give you an internal ip address. Note it down.
 
-2. Open up a terminal and run the python socket server:
+2. Now we need the container for `socket-ssh`. Here's how to do that:
+    Build if, the image is not built yet.
     ```
-    python app.py
+    npm run build
     ```
-    This will run our socket server on `0.0.0.0:8000`
+    Push if, the built image is not pushed yet.
+    ```
+    npm run push
+    ```
+    Finally, run the docker container.
+    ```
+    npm run dockerrun
+    ```
 
-3. Open up another terminal and run the test client:
+3. Now we need to run the test client.
     ```
     python test_client/test_client_server.py
     ```
     This will run our test_client on `0.0.0.0:8375`.
     Open the browser and type `0.0.0.0:8375` to view the client.
-
-
-# BUGS:
-1. Fix the top and apt-install command. Read output without having to hit enter.
 
 
 # Concerns
