@@ -54,6 +54,23 @@ Here are the steps to run locally:
     ```
 
 3. Now we need to run the test client.
+    Create a virtualenv and install flask.
+    ```
+    $ mkvirtualenv socket-ssh
+    $ pip install flask
+    ```
+    Now use the ip address you copied, and paste it in `test_client/templates/index.html` in this line.
+    ```
+    var dataToSend = {
+        event: 'ssh_connect',  // Event name or identifier
+        ssh_hash: 'asdf',
+        ssh_host: '<paste ip here>',
+        ssh_port: 22,
+        ssh_username: 'ubuntu',
+        ssh_password: '1234'
+    };
+    ```
+    Now run the test client.
     ```
     python test_client/test_client_server.py
     ```
