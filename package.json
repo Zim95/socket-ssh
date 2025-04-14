@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/Zim95/socket-ssh#readme",
   "dependencies": {
+    "@nestjs/passport": "^11.0.5",
+    "passport": "^0.7.0",
     "ws": "^8.18.1"
   },
   "devDependencies": {
