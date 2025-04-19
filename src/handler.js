@@ -1,4 +1,6 @@
 const {validateSchema} = require('./utils');
+const {SSHChannel} = require('./socketSSH/sshChannel');
+const {SocketSSHClient} = require('./socketSSH/socketSSHClient');
 
 
 class MessageHandler {
@@ -55,6 +57,9 @@ class MessageHandler {
 
 
 class EchoHandler extends MessageHandler {
+    /*
+        This handler is used to echo the message back to the client.
+    */
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
     }
@@ -82,8 +87,12 @@ class EchoHandler extends MessageHandler {
 
 
 class SSHConnectHandler extends MessageHandler {
+    /*
+        This handler is used to connect to the SSH server.
+    */
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
+        this.requestHashStore = extraParams.requestHashStore;
     }
 
     getMessageSchema = () => {
@@ -100,8 +109,29 @@ class SSHConnectHandler extends MessageHandler {
         try {
             // validate the data and message properties.
             if (!this.isMessageValid()) return { error: `Invalid message format. The required message schema is: ${JSON.stringify(this.getMessageSchema())}`};
-            // handle logic
-            
+            /**
+             * 1. Check if requestHashStore is undefined.
+             * 2. Check if the ssh_hash is already in the requestHashStore.
+             * 3. If it is not, then we need to create a new one.
+             * 4. If it is, then we can use it to connect to the SSH server.
+             */
+            if (this.requestHashStore === undefined) throw new Error('Request hash store needs to exist!');
+            if (this.requestHashStore[this.data.ssh_hash] === undefined) {
+                // create a new SSH Channel.
+                const sshChannelObject = new SSHChannel(this.clientConnection);
+                const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
+                this.requestHashStore[this.data.ssh_hash] = socketSSHClientObject;
+            }
+            // now in both ways, we have this.requestHashStore[this.data.ssh_hash] set. If it didnt exist, we created it.
+            // If it existed, we can use it now.
+            this.requestHashStore[this.data.ssh_hash].connectToSSH(
+                {
+                    host: this.data.ssh_host,
+                    port: this.data.ssh_port,
+                    username: this.data.ssh_username,
+                    password: this.data.ssh_password
+                }
+            );
         } catch (error) {
             // handle errors.
             console.error('Error handling message:', error);
@@ -113,6 +143,9 @@ class SSHConnectHandler extends MessageHandler {
 
 
 class SSHSendHandler extends MessageHandler {
+    /*
+        This handler is used to send data to the SSH server.
+    */
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
     }
@@ -128,8 +161,22 @@ class SSHSendHandler extends MessageHandler {
         try {
             // validate the data and message properties.
             if (!this.isMessageValid()) return { error: `Invalid message format. The required message schema is: ${JSON.stringify(this.getMessageSchema())}`};
-            // handle logic
-            // this.clientConnection.send(JSON.stringify({ message: this.data.message }));
+            /**
+             * 1. Check if requestHashStore is undefined.
+             * 2. Check if the ssh_hash is already in the requestHashStore.
+             * 3. If it is not, then we need to create a new one.
+             * 4. If it is, then we can use it to send data to the SSH server.
+             */
+            if (this.requestHashStore === undefined) throw new Error('Request hash store needs to exist!');
+            if (this.requestHashStore[this.data.ssh_hash] === undefined) {
+                // create a new SSH Channel.
+                const sshChannelObject = new SSHChannel(this.clientConnection);
+                const socketSSHClientObject = new SSHSocketClient(sshChannelObject);
+                this.requestHashStore[this.data.ssh_hash] = socketSSHClientObject;
+            }
+            // now in both ways, we have this.requestHashStore[this.data.ssh_hash] set. If it didnt exist, we created it.
+            // If it existed, we can use it now.
+            this.requestHashStore[this.data.ssh_hash].sendDataToSSH(this.data.ssh_command);
         } catch (error) {
             // handle errors.
             console.error('Error handling message:', error);
