@@ -34,7 +34,7 @@ test('on echo - Should receive the same message back', (done) => {
     });
 
     // This is triggered when the server sends websocket.close()
-    serverConnection.on('close', () => setImmediate(done)); // This gets called when the server sends clientConnection.close()
+    serverConnection.on('close', () => setTimeout(() => done(), 1000)); // This gets called when the server sends clientConnection.close()
     // SetImmediate is used to schedule the done callback to be called immediately after the current operation completes.
 
     // This is triggered when the client encounters an error.
