@@ -1,3 +1,13 @@
+/**
+ * This code was written by Claude. We wanted to mimic ssh2 module.
+ * Since, I dont have much experience with event programming, I asked Claude to write the code.
+ * Reason: Since we use arrow functions in our sshChannel.js, we could not mock them using jest.spyOn(<module>.prototype, <method>).
+ * So our only option was to mock the entire module.
+ * But, if we mocked sshChannel.js, we would not be able to check the flow of the code.
+ * So instead, we mocked the ssh2 module. So that, we can test the flow of code in sshChannel.js, and socketSSH.js combined.
+ * This is a working mock. We made some tweaks to it, to make it work with our code.
+ */
+
 class MockSSH2Client {
     constructor() {
         this._events = {};
@@ -33,6 +43,7 @@ class MockSSH2Client {
                 }
             },
             write: jest.fn((data) => {
+                console.log('This is the command recieved by the write method of the mock stream:', data);
                 // Return some mock result
                 if (this._dataHandler) {
                     this._dataHandler(`mock shell output\n`);
