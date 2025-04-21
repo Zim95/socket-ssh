@@ -19,7 +19,7 @@ websocketServer.on('connection', (clientConnection) => {
   console.log('Client connected');
 
   clientConnection.on('message', (message) => {
-    const requestHandler = new RequestHandler(clientConnection, message, extraParams={requestHashStore});
+    const requestHandler = new RequestHandler(clientConnection, message, {requestHashStore});
     requestHandler.handle();
   });
 

@@ -38,8 +38,8 @@ class SSHChannel {
             THIS SETS THE STREAM.
         */
         try {
-            this.websocket.send("\r\n*** SSH CONNECTION ESTABLISHED ***\r\n");
             this.stream = await this.getSSHShell(); // assign it to the stream.
+            this.websocket.send("\r\n*** SSH CONNECTION ESTABLISHED ***\r\n");
         } catch(err) {
             console.error('Error from SSH Shell: ', err);
             this.websocket.send("\r\n*** SSH SHELL ERROR: " + err.message + " ***\r\n");
