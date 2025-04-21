@@ -8,10 +8,9 @@ class MockSSH2Client {
         return this;
     }
 
-    connect(config) {
+    connect() {
         // Simulate async connect success
         setTimeout(() => {
-            this._connected = true;  // set the connected flag to true.
             if (this._events['ready']) {
                 this._events['ready']();
             }
