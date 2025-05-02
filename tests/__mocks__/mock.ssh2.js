@@ -1,6 +1,6 @@
 /**
  * This code was written by Claude. We wanted to mimic ssh2 module.
- * Since, I dont have much experience with event programming, I asked Claude to write the code.
+ * Since, I dont have much experience mocking event based programming, I asked Claude to write the code.
  * Reason: Since we use arrow functions in our sshChannel.js, we could not mock them using jest.spyOn(<module>.prototype, <method>).
  * So our only option was to mock the entire module.
  * But, if we mocked sshChannel.js, we would not be able to check the flow of the code.

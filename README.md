@@ -3,7 +3,85 @@ A websocket interface to SSH servers.
 
 
 ## How to setup for development?
+Make sure you have docker installed. Works with docker desktop for mac.
+1. Clone the repository.
+    ```
+    git clone https://github.com/Zim95/socket-ssh.git
+    ```
+    Then navigate into the repository.
+    ```
+    cd socket-ssh
+    ```
+
+2. Make the entrypoint script executable.
+    ```
+    chmod +x infra/development/entrypoint-development.sh
+    ```
+
+3. Create an `env.mk` file with the following variables:
+    ```
+    REPO_NAME=<your-dockerhub-username>
+    USER_NAME=<your-dockerhub-username>
+    NAMESPACE=<your-namespace>
+    HOST_DIR=<your-working-directory>
+    ```
+
+4. Run the development build script, if not already done.
+    ```
+    make dev_build
+    ```
+
+5. Run the development setup script.
+    ```
+    make dev_setup
+    ```
+
+6. Get inside the pod:
+    First check the pod status:
+    ```
+    kubectl get pods -n <your-namespace>  --watch
+    ```
+    You should see the pod being created and then it will be running.
+    ```
+    NAME                                             READY   STATUS    RESTARTS       AGE
+    socket-ssh-development-86c99bf745-qf6n4          1/1     Running   0              6m42s
+    ```
+    Once the pod is running, get inside the pod:
+    ```
+    kubectl exec -it socket-ssh-development-86c99bf745-qf6n4 -n <your-namespace> -- bash
+    ```
+    Now you are inside the pod.
+
+7. Now we test if your local working directory is mounted to the pod.
+    In your text editor outside the pod (in your local machine - working directory), create a new file and save it as `test.js`. Check if that file is present in the pod.
+    ```
+    ls
+    ```
+    You should see the `test.js` file.
+    This means that your local working directory is mounted to the pod. You can make changes in your working directory and they will be reflected in the pod.
+    You are free to develop the code and test the workings.
+
+8. Once done you can run the teardown script.
+    ```
+    make dev_teardown
+    ```
+
 
 ## How to setup?
 
+
 ## How to run tests?
+1. We need to first setup development. Follow the setup for development part.
+2. Run `make test` to run the tests.
+
+
+
+
+# TODO:
+1. We need a way to turn this into a secure websocket.
+2. We need to setup a dummy SSH server and test if things are working as expected.
+3. We need to write scripts to deploy this:
+    - Development - Create Dockerfile, Kubernetes YAML with service.
+    - Production - Create Dockerfile only. The service and pod will be created by container-maker.
+4. Add a makefile for automation.
+5. Try using cert manager certificates. To make the websocket secure.
