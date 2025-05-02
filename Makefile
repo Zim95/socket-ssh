@@ -14,12 +14,9 @@ dev_teardown:
 
 # Production
 prod_build:
-	./scripts/deployment/development-build.sh $(USER_NAME) $(REPO_NAME)
+	./scripts/deployment/build.sh $(USER_NAME) $(REPO_NAME)
 
-prod_setup:
-	./scripts/deployment/development-setup.sh $(NAMESPACE) $(HOST_DIR)
-
-prod_teardown:
-	./scripts/deployment/development-teardown.sh $(NAMESPACE)
-
-.PHONY: dev_build dev_setup dev_teardown prod_build prod_setup prod_teardown
+# This app does not have production setup and teardown.
+# A container for this will be created dynamically by container-maker.
+# Even the certificate environment variables will be passed dynamically.
+# So we do not need to do anything here.
