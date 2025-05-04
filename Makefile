@@ -4,10 +4,11 @@ include env.mk
 
 # Development
 dev_build:
+	./scripts/test_ssh_container/test-ssh-build.sh $(USER_NAME) $(REPO_NAME)
 	./scripts/development/development-build.sh $(USER_NAME) $(REPO_NAME)
 
 dev_setup:
-	./scripts/development/development-setup.sh $(NAMESPACE) $(HOST_DIR)
+	./scripts/development/development-setup.sh $(NAMESPACE) $(HOST_DIR) $(REPO_NAME)
 
 dev_teardown:
 	./scripts/development/development-teardown.sh $(NAMESPACE)

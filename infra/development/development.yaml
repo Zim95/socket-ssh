@@ -44,9 +44,11 @@ spec:
       labels:
         app: socket-ssh-development
     spec:
+      serviceAccountName: podsnservices-sa
       containers:
       - name: socket-ssh-development
-        image: zim95/socket-ssh-development:latest
+        image: ${REPO_NAME}/socket-ssh-development:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         # env:
