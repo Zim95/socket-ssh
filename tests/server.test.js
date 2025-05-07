@@ -1,3 +1,16 @@
+/*
+    This tests all our endpoints.
+    We mock ssh2 module for convienience.
+    To know more about the mock, check mock.ssh2.js.
+    Also read Mocking Arrow Methods section in this file.
+    Current Endpoints:
+        - echo
+        - sshConnect
+        - sshSendData
+        - sshClose - This needs to be added.
+*/
+
+
 const WebSocket = require('ws');
 // mock the ssh2 module. We need to do this here, because we need to make sure, the mock happens before it is imported elsewhere.
 jest.mock('ssh2', () => {
@@ -189,7 +202,7 @@ test('on sshSendData - Should get the response back from SSH Server', (done) => 
         1. Connection Established.
         2. Command Response.
 
-        If !connectionEstablished, then we expect the message to be the connection established message.
+        If !connectionEstablished meaning connection has not been established yet, then we expect the message to be the "connection established" message. Because a connection needs to be established first.
         If connectionEstablished, then we expect the message to be the command response.
         */
         try {

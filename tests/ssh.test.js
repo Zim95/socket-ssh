@@ -2,7 +2,6 @@ const {runContainer, deleteContainer, waitForContainerToBeReady} = require('./__
 const SSHChannel = require('../src/socketSSH/sshChannel');
 const SocketSSHClient = require('../src/socketSSH/socketSSHClient');
 const MockWebSocket = require('./__mocks__/mock.websocket');
-const dummyWebSocket = new MockWebSocket();
 
 let containerIP; // Add this at the top level to store the container IP
 
@@ -48,6 +47,7 @@ describe('SSH Connection Tests', () => {
     */
     test('Should connect to the SSH server', async () => {
         console.log('Started test - SSH Connection Test');
+        const dummyWebSocket = new MockWebSocket(); // We should not share websocket across tests. Causes issues.
         const sshChannel = new SSHChannel(dummyWebSocket);
         const socketSSHClient = new SocketSSHClient(sshChannel);
 
@@ -71,6 +71,51 @@ describe('SSH Connection Tests', () => {
         console.log('SSH Connection Test completed');
 
         // close the connection manually.
+        socketSSHClient.close();
+    });
+
+    test('Should send data to the SSH server', async () => {
+        console.log('Started test - Send Data to SSH Server');
+        const dummyWebSocket = new MockWebSocket(); // We should not share websocket across tests. Causes issues.
+        const sshChannel = new SSHChannel(dummyWebSocket);
+        const socketSSHClient = new SocketSSHClient(sshChannel);
+
+        // First we need to connect to the SSH server. And wait for the connection to be ready.
+        const connectionReadyPromise = new Promise((resolve) => {
+            dummyWebSocket.on('message', (message) => {
+                if (message.includes("*** SSH CONNECTION ESTABLISHED ***")) {
+                    resolve(message);
+                }
+            });
+        });
+
+        socketSSHClient.connectToSSH({
+            host: containerIP,
+            port: 2222,
+            username: 'testuser',
+            password: 'testpassword'
+        });
+
+        // wait for the connection to be ready.
+        const connectionEstablishedMessage = await connectionReadyPromise;
+        expect(connectionEstablishedMessage).toContain("*** SSH CONNECTION ESTABLISHED ***");
+
+        // Now we need to send data to the SSH server.
+        // Output promise
+        const outputPromise = new Promise((resolve) => {
+            dummyWebSocket.on('message', (message) => {
+                console.log('Received message:', message);
+                if (message.includes('/home')) {
+                    resolve(message);
+                }
+            });
+        });
+        socketSSHClient.sendDataToSSH('pwd\n');
+        // we need to add \n at the end, this tells SSH that the command has ended.
+        // Without \n we will never get the result back.
+        const receivedResponse = await outputPromise;
+        expect(receivedResponse).toContain('/home/testuser');
+
         socketSSHClient.close();
     });
 });
