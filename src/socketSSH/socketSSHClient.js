@@ -15,6 +15,12 @@ class SocketSSHClient {
     sendDataToSSH = (message) => {
         this.sshChannelObject.getSSHStream().write(message);
     }
+
+    close = () => {
+        if (this.sshChannelObject?.ssh) {
+            this.sshChannelObject.ssh.end();
+        }
+    }
 }
 
 
