@@ -79,9 +79,4 @@ Make sure you have docker installed. Works with docker desktop for mac.
 
 # TODO:
 1. We need a way to turn this into a secure websocket.
-2. We need to setup a dummy SSH server and test if things are working as expected.
-3. We need to write scripts to deploy this:
-    - Development - Create Dockerfile, Kubernetes YAML with service.
-    - Production - Create Dockerfile only. The service and pod will be created by container-maker.
-4. Add a makefile for automation.
-5. Try using cert manager certificates. To make the websocket secure.
+2. Try using cert manager certificates. To make the websocket secure.
