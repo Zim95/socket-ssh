@@ -12,28 +12,35 @@
 
 
 const WebSocket = require('ws');
+const { readCertificates } = require('../src/utils');
 // mock the ssh2 module. We need to do this here, because we need to make sure, the mock happens before it is imported elsewhere.
 jest.mock('ssh2', () => {
     return {
         Client: require('./__mocks__/mock.ssh2')  // SSH2 exports a Client class, so we need to do the same.
     }
 });
-let webSocketServer;
+let httpsServer;
+const certificates = readCertificates();
 
 // setup
 beforeAll(() => {
-    webSocketServer = require('../server'); 
+    httpsServer = require('../server');
 });
 
 
 afterAll((done) => {
-    webSocketServer.close(() => done());
+    httpsServer.close(() => done());
     jest.resetAllMocks();
 });
 
 
 test('on echo - Should receive the same message back', (done) => {
-    const serverConnection = new WebSocket('ws://localhost:8000');
+    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
+        cert: certificates['client.crt'],
+        key: certificates['client.key'],
+        ca: certificates['ca.crt'],
+        rejectUnauthorized: true
+    });
 
     // Open runs once the connection is established.
     // we do a client.send. This triggers the 'message` event on the clientConnection.
@@ -102,7 +109,12 @@ test('on sshConnect - Should get SSH connected message back', (done) => {
     Update, we are going to create a mock class for SSH2.
     */
 
-    const serverConnection = new WebSocket('ws://localhost:8000');
+    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
+        cert: certificates['client.crt'],
+        key: certificates['client.key'],
+        ca: certificates['ca.crt'],
+        rejectUnauthorized: true
+    });
     // now we will trigger connect.
     serverConnection.on('open', () => serverConnection.send(
         JSON.stringify({
@@ -176,7 +188,12 @@ test('on sshSendData - Should get the response back from SSH Server', (done) => 
     Update, we are going to create a mock class for SSH2.
     */
 
-    const serverConnection = new WebSocket('ws://localhost:8000');
+    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
+        cert: certificates['client.crt'],
+        key: certificates['client.key'],
+        ca: certificates['ca.crt'],
+        rejectUnauthorized: true
+    });
     let connectionEstablished = false;
 
     // now we will trigger connect.
@@ -256,4 +273,5 @@ test('on sshClose - Should close the SSH connection', (done) => {
     */
 
     console.log('Disconnect test!');
+    done();
 });

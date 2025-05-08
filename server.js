@@ -1,10 +1,22 @@
 const WebSocket = require('ws');
+const https = require('https');
 const RequestHashStore = require('./src/requestContext');
 const { RequestHandler } = require('./src/handler');
+const { readCertificates } = require('./src/utils');
+
+const certificates = readCertificates();
+
+const serverOptions = {
+  key: certificates['server.key'],
+  cert: certificates['server.crt'],
+  ca: certificates['ca.crt'],
+  requestCert: true,
+  rejectUnauthorized: true,
+};
 
 
-// This automatically starts the server
-const websocketServer = new WebSocket.Server({ port: 8000 });
+const httpsServer = https.createServer(serverOptions);
+const websocketServer = new WebSocket.Server({ server: httpsServer });
 const requestHashStore = new RequestHashStore(); // Request hash store.
 
 
@@ -30,7 +42,9 @@ websocketServer.on('connection', (clientConnection) => {
 });
 
 
-console.log('Server started at: ws://localhost:8000');
+httpsServer.listen(8000, () => {
+  console.log('WSS server listening on port 8000');
+});
 
 
-module.exports = websocketServer;
+module.exports = httpsServer;
