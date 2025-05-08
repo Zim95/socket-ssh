@@ -68,15 +68,20 @@ Make sure you have docker installed. Works with docker desktop for mac.
 
 
 ## How to setup?
+1. This codebase only has build command for production setup.
+    ```
+    make prod_build
+    ```
+
+2. The deployment of this image happens directly through other services.
 
 
 ## How to run tests?
 1. We need to first setup development. Follow the setup for development part.
-2. Run `make test` to run the tests.
-
-
-
-
-# TODO:
-1. We need a way to turn this into a secure websocket.
-2. Try using cert manager certificates. To make the websocket secure.
+2. After following the development setup, you should be inside the pod. Do not run step 8 (do not teardown basically).
+3. Then inside the pod, just run:
+    ```
+    npm run test
+    ```
+    NOTE: Sometimes 2 tests fail in `ssh.test.js`. This is just because the pod wasn't ready for ssh commands before jest exists. It happens sometimes.
+    Please re-run the test and you should be fine.
