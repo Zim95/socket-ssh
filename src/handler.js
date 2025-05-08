@@ -188,6 +188,48 @@ class SSHSendHandler extends MessageHandler {
 }
 
 
+class SSHCloseHandler extends MessageHandler {
+    /*
+        This handler is used to close the SSH connection.
+    */
+    constructor(clientConnection, data, extraParams={}) {
+        super(clientConnection, data, extraParams);
+        this.requestHashStore = extraParams.requestHashStore;
+    }
+
+    getMessageSchema = () => {
+        return {
+            ssh_hash: 'string'
+        };
+    }
+
+    handle = () => {
+        try {
+            // validate the data and message properties.
+            if (!this.isMessageValid()) return { error: `Invalid message format. The required message schema is: ${JSON.stringify(this.getMessageSchema())}`};
+            /**
+             * 1. Check if requestHashStore is undefined.
+             * 2. Check if the ssh_hash is already in the requestHashStore.
+             * 3. If it is not, then throw an error.
+             * 4. If it is, then we can use it to disconnect from the SSH server.
+             */
+            if (this.requestHashStore === undefined) throw new Error('Request hash store needs to exist!');
+            const socketSSHClientObject = this.requestHashStore.getRequestEntry(this.data.ssh_hash);
+            if (socketSSHClientObject === undefined) throw new Error('SSH hash not found in request hash store!');
+            // close the socketSSHClientObject.
+            socketSSHClientObject.close();
+            // remove the requestHashStore entry.
+            this.requestHashStore.removeRequestEntry(this.data.ssh_hash);
+        } catch (error) {
+            // handle errors.
+            console.error('Error handling message:', error);
+            // send errors to the socket connection.
+            this.clientConnection.send(JSON.stringify({ error: error.message }));
+        }
+    }
+}
+
+
 class RequestHandler {
     /*
         This is the message handler.
@@ -231,7 +273,8 @@ class RequestHandler {
         const HANDLERS = {
             'echo': EchoHandler,
             'sshConnect': SSHConnectHandler,
-            'sshSendData': SSHSendHandler
+            'sshSendData': SSHSendHandler,
+            'sshClose': SSHCloseHandler
         };
         try {
             // first check the handler

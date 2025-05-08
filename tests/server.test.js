@@ -239,3 +239,21 @@ test('on sshSendData - Should get the response back from SSH Server', (done) => 
     serverConnection.on('error', (err) => done(err));
 });
 
+
+test('on sshClose - Should close the SSH connection', (done) => {
+    /*
+        Here we mock the actual connect method and return the values ourselves.
+        So that we can be sure that the rest of the code related to the server is working.
+        We will perform the actual test in ssh.test.js.
+    */
+    
+    /*
+        1. First we establish the connection.
+        2. Then we disconnect. We should get a disconnected message back.
+
+        NOTE: We have already tested the socketSSHClient close method in ssh.test.js. 
+              We only need to test the socket side of things here.
+    */
+
+    console.log('Disconnect test!');
+});

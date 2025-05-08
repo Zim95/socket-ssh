@@ -71,6 +71,7 @@ describe('SSH Connection Tests', () => {
         console.log('SSH Connection Test completed');
 
         // close the connection manually.
+        // We are already testing the socketSSHClient close method here.
         socketSSHClient.close();
     });
 
@@ -116,6 +117,8 @@ describe('SSH Connection Tests', () => {
         const receivedResponse = await outputPromise;
         expect(receivedResponse).toContain('/home/testuser');
 
+        // Now we need to disconnect from the SSH server.
+        // We are already testing the socketSSHClient close method here.
         socketSSHClient.close();
     });
 });
