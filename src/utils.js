@@ -64,6 +64,14 @@ const readCertificates = () => {
 
     const readCertificates = {};
     for (const [filename, data] of Object.entries(certificates)) {
+        /*
+            !data - This checks if the data is not null or undefined.
+            data.trim() === '' - This checks if the data is an empty string or contains only whitespace.
+            If both are true, then the certificate is missing or empty.
+        */
+        if (!data || data.trim() === '') {
+            throw new Error(`Certificate ${filename} is missing or empty`);
+        }
         const tempFilePath = writeTempFile(data, filename);
         readCertificates[filename] = fs.readFileSync(tempFilePath, 'utf8');
         deleteTempFile(tempFilePath);
