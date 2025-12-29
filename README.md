@@ -67,15 +67,22 @@ Make sure you have docker installed. Works with docker desktop for mac.
     ```
 
 
-## How to setup?
-1. This codebase only has build command for production setup.
+## How to setup prod?
+1. Build the Image.
     ```bash
     make prod_build
     ```
-
-2. The deployment of this image happens directly through other services.
-
-
+  
+2. Setup the resources.
+   ```bash
+   make prod_setup
+   ```
+  
+3. Teardown the resources.
+    ```bash
+    make prod_teardown
+    ```
+  
 ## How to run tests?
 1. We need to first setup development. Follow the setup for development part.
 2. After following the development setup, you should be inside the pod. Do not run step 8 (do not teardown basically).
