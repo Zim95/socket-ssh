@@ -1,0 +1,196 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: podsnservices-cluster-role-prod
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "services", "services/status", "secrets"]
+  verbs: ["list", "create", "delete", "get"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: podsnservices-sa-prod
+  namespace: ${NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: podsnservices-cluster-role-binding-prod
+subjects:
+- kind: ServiceAccount
+  name: podsnservices-sa-prod
+  namespace: ${NAMESPACE}
+roleRef:
+  kind: ClusterRole
+  name: podsnservices-cluster-role-prod
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: socket-ssh
+  namespace: ${NAMESPACE}
+  labels:
+    app: socket-ssh
+spec:
+  selector:
+    matchLabels:
+      app: socket-ssh
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: socket-ssh
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      serviceAccountName: podsnservices-sa-prod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: socket-ssh
+        image: ${REPO_NAME}/socket-ssh:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: wss
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: SERVER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: socket-ssh-service-certs
+              key: server.key
+        - name: SERVER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: socket-ssh-service-certs
+              key: server.crt
+        - name: CLIENT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: socket-ssh-service-certs
+              key: client.key
+        - name: CLIENT_CRT
+          valueFrom:
+            secretKeyRef:
+              name: socket-ssh-service-certs
+              key: client.crt
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: socket-ssh-service-certs
+              key: ca.crt
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socket-ssh-service
+  namespace: ${NAMESPACE}
+  labels:
+    app: socket-ssh
+spec:
+  type: ClusterIP
+  selector:
+    app: socket-ssh
+  ports:
+  - name: wss
+    protocol: TCP
+    port: 8000
+    targetPort: wss
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: socket-ssh-hpa
+  namespace: ${NAMESPACE}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: socket-ssh
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      selectPolicy: Max
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: socket-ssh-prod-pdb
+  namespace: ${NAMESPACE}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: socket-ssh
