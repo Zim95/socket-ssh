@@ -66,31 +66,18 @@ spec:
         env:
         - name: NODE_ENV
           value: "production"
-        - name: SERVER_KEY
-          valueFrom:
-            secretKeyRef:
-              name: socket-ssh-service-certs
-              key: server.key
-        - name: SERVER_CRT
-          valueFrom:
-            secretKeyRef:
-              name: socket-ssh-service-certs
-              key: server.crt
-        - name: CLIENT_KEY
-          valueFrom:
-            secretKeyRef:
-              name: socket-ssh-service-certs
-              key: client.key
-        - name: CLIENT_CRT
-          valueFrom:
-            secretKeyRef:
-              name: socket-ssh-service-certs
-              key: client.crt
-        - name: CA_CRT
-          valueFrom:
-            secretKeyRef:
-              name: socket-ssh-service-certs
-              key: ca.crt
+        - name: REDIS_HOST
+          value: "${REDIS_HOST}"
+        - name: REDIS_PORT
+          value: "${REDIS_PORT}"
+        - name: REDIS_USERNAME
+          value: "${REDIS_USERNAME}"
+        - name: REDIS_PASSWORD
+          value: "${REDIS_PASSWORD}"
+        - name: REDIS_DB
+          value: "${REDIS_DB}"
+        - name: ALLOWED_ORIGINS
+          value: "${ALLOWED_ORIGINS_PROD}"
         resources:
           requests:
             memory: "256Mi"
@@ -194,3 +181,24 @@ spec:
   selector:
     matchLabels:
       app: socket-ssh
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: socket-ssh-ingress
+  namespace: ${NAMESPACE}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ${SOCKET_SSH_HOST}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: socket-ssh-service
+            port:
+              number: 8000

@@ -24,6 +24,12 @@ Make sure you have docker installed. Works with docker desktop for mac.
     USER_NAME=<your-dockerhub-username>
     NAMESPACE=<your-namespace>
     HOST_DIR=<your-working-directory>
+    # REDIS CREDENTIALS
+    REDIS_HOST=<redis-service-name>
+    REDIS_PORT=<redis-port>	
+    REDIS_PASSWORD=<redis-password>
+    REDIS_USERNAME=<redis-username>
+    REDIS_DB=<redis-db>
     ```
 
 4. Run the development build script, if not already done.

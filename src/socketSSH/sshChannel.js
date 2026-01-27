@@ -22,7 +22,7 @@ class SSHChannel {
                     return;
                 }
                 stream.on('data', (data) => {
-                    this.websocket.send(data.toString());
+                    this.websocket.send(JSON.stringify({ message: data.toString() }));
                 });
                 stream.on('close', () => {
                     this.ssh.end();
@@ -37,12 +37,14 @@ class SSHChannel {
             Upon ready we send a message and then assign a stream to our object.
             THIS SETS THE STREAM.
         */
+        console.log('SSH ready event fired - getting shell...');
         try {
             this.stream = await this.getSSHShell(); // assign it to the stream.
-            this.websocket.send("\r\n*** SSH CONNECTION ESTABLISHED ***\r\n");
+            console.log('SSH shell acquired successfully');
+            this.websocket.send(JSON.stringify({ message: "\r\n*** SSH CONNECTION ESTABLISHED ***\r\n" }));
         } catch(err) {
             console.error('Error from SSH Shell: ', err);
-            this.websocket.send("\r\n*** SSH SHELL ERROR: " + err.message + " ***\r\n");
+            this.websocket.send(JSON.stringify({ error: err.message }));
         }
     }
 
@@ -50,7 +52,7 @@ class SSHChannel {
         /*
             Close the SSH connection
         */
-        this.websocket.send("\r\n*** SSH CONNECTION CLOSED ***\r\n");
+        this.websocket.send(JSON.stringify({ message: "\r\n*** SSH CONNECTION CLOSED ***\r\n" }));
     }
 
     errorHandler = (error) => {
@@ -58,7 +60,7 @@ class SSHChannel {
             Send error to the websocket.
         */
         console.error('Error from SSH Connection:', error);
-        this.websocket.send("\r\n*** SSH CONNECTION ERROR: " + error.message + " ***\r\n");
+        this.websocket.send(JSON.stringify({ error: error.message }));
     }
 
     getSSHClient = () => {

@@ -1,50 +1,85 @@
 const WebSocket = require('ws');
-const https = require('https');
+const http = require('http');
 const RequestHashStore = require('./src/requestContext');
 const { RequestHandler } = require('./src/handler');
-const { readCertificates } = require('./src/utils');
+const { authenticateRequest } = require('./src/authenticate');
 
-const certificates = readCertificates();
+// Allowed origins for CORS (from environment or default)
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://browseterm.local.com:9999,http://localhost:9999').split(',');
 
-const serverOptions = {
-  key: certificates['server.key'],
-  cert: certificates['server.crt'],
-  ca: certificates['ca.crt'],
-  requestCert: true,
-  rejectUnauthorized: true,
-};
+// Use plain HTTP/WS server
+// TLS is handled by the ingress controller in production
+const server = http.createServer();
 
+// Create WebSocket server with verifyClient for CORS handling
+const websocketServer = new WebSocket.Server({ 
+  server,
+  verifyClient: (info, callback) => {
+    const origin = info.origin || info.req.headers.origin;
+    
+    // Check if origin is allowed
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+      console.log(`Rejected connection from origin: ${origin}`);
+      callback(false, 403, 'Forbidden');
+      return;
+    }
+    
+    // Allow the connection
+    callback(true);
+  }
+});
 
-const httpsServer = https.createServer(serverOptions);
-const websocketServer = new WebSocket.Server({ server: httpsServer });
-const requestHashStore = new RequestHashStore(); // Request hash store.
+const requestHashStore = new RequestHashStore();
+// Track which SSH sessions belong to which WebSocket connection
+const connectionSessions = new WeakMap();
 
+websocketServer.on('connection', async (clientConnection, req) => {
+  console.log('Client connected', `Iteration {1}`);
 
-websocketServer.on('connection', (clientConnection) => {
-  /*
-    Here we map the events to appropriate handlers.
-    We only log the client connection event and map the events to handlers. Nothing else.
-    :params:
-      clientConnection: The client connection object.
-    :returns: None (There is no actual return, we are mapping the events to handlers)
-  */
-  console.log('Client connected');
+  // Authenticate session
+  const isAuthenticated = await authenticateRequest(req);
+  if (!isAuthenticated) {
+    clientConnection.send(JSON.stringify({ error: 'Invalid session. Please login again.' }));
+    clientConnection.close();
+    return;
+  }
+
+  // Track SSH sessions for this connection
+  connectionSessions.set(clientConnection, new Set());
 
   clientConnection.on('message', (message) => {
-    const requestHandler = new RequestHandler(clientConnection, message, {requestHashStore});
+    const requestHandler = new RequestHandler(clientConnection, message, { requestHashStore, connectionSessions });
     requestHandler.handle();
   });
 
+  // Send ready message to client after authentication and setup is complete
+  clientConnection.send(JSON.stringify({ type: 'ready', message: 'Server ready to accept commands' }));
+
   clientConnection.on('close', () => {
-    console.log('Client Disconnected');
-    clientConnection.close(); // Calls serverConnection.on('close', () => setImmediate(done));
+    console.log('Client disconnected');
+    
+    // Clean up all SSH sessions associated with this connection
+    const sessions = connectionSessions.get(clientConnection);
+    if (sessions) {
+      sessions.forEach((sshHash) => {
+        const socketSSHClient = requestHashStore.getRequestEntry(sshHash);
+        if (socketSSHClient) {
+          console.log(`Cleaning up SSH session: ${sshHash}`);
+          try {
+            socketSSHClient.close();
+            requestHashStore.removeRequestEntry(sshHash);
+          } catch (error) {
+            console.error(`Error cleaning up session ${sshHash}:`, error);
+          }
+        }
+      });
+      connectionSessions.delete(clientConnection);
+    }
   });
 });
 
-
-httpsServer.listen(8000, () => {
-  console.log('WSS server listening on port 8000');
+server.listen(8000, () => {
+  console.log('WS server listening on port 8000 (TLS handled by ingress)');
 });
 
-
-module.exports = httpsServer;
+module.exports = server;

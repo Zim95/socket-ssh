@@ -93,6 +93,7 @@ class SSHConnectHandler extends MessageHandler {
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
         this.requestHashStore = extraParams.requestHashStore;
+        this.connectionSessions = extraParams.connectionSessions;
     }
 
     getMessageSchema = () => {
@@ -121,6 +122,14 @@ class SSHConnectHandler extends MessageHandler {
                 const sshChannelObject = new SSHChannel(this.clientConnection);
                 const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
                 this.requestHashStore.addRequestEntry(this.data.ssh_hash, socketSSHClientObject);
+                
+                // Track this session for cleanup on disconnect
+                if (this.connectionSessions) {
+                    const sessions = this.connectionSessions.get(this.clientConnection);
+                    if (sessions) {
+                        sessions.add(this.data.ssh_hash);
+                    }
+                }
             }
             // now in both ways, we have this.requestHashStore[this.data.ssh_hash] set. If it didnt exist, we created it.
             // If it existed, we can use it now.
@@ -149,6 +158,7 @@ class SSHSendHandler extends MessageHandler {
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
         this.requestHashStore = extraParams.requestHashStore;
+        this.connectionSessions = extraParams.connectionSessions;
     }
 
     getMessageSchema = () => {
@@ -174,6 +184,14 @@ class SSHSendHandler extends MessageHandler {
                 const sshChannelObject = new SSHChannel(this.clientConnection);
                 const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
                 this.requestHashStore.addRequestEntry(this.data.ssh_hash, socketSSHClientObject);
+                
+                // Track this session for cleanup on disconnect
+                if (this.connectionSessions) {
+                    const sessions = this.connectionSessions.get(this.clientConnection);
+                    if (sessions) {
+                        sessions.add(this.data.ssh_hash);
+                    }
+                }
             }
             // now in both ways, we have this.requestHashStore[this.data.ssh_hash] set. If it didnt exist, we created it.
             // If it existed, we can use it now.
@@ -301,7 +319,7 @@ class RequestHandler {
             handler.handle(); // call the handle method.
         } catch (error) {
             console.error('Error handling message:', error);
-            clientConnection.send(JSON.stringify({ error: error.message }));
+            this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
     }
 }

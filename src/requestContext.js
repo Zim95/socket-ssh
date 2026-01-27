@@ -30,6 +30,14 @@ class RequestHashStore {
     removeRequestEntry = (requestHash) => {
         delete this.requestHashStore[requestHash];
     }
+
+    getAllRequestEntries = () => {
+        return Object.keys(this.requestHashStore);
+    }
+
+    getRequestEntryValue = (requestHash) => {
+        return this.requestHashStore[requestHash];
+    }
 }
 
 module.exports = RequestHashStore;
