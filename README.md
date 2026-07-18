@@ -30,12 +30,19 @@ Make sure you have docker installed. Works with docker desktop for mac.
     REDIS_PASSWORD=<redis-password>
     REDIS_USERNAME=<redis-username>
     REDIS_DB=<redis-db>
+    # SOCKET-SSH CONFIG
+    SOCKET_SSH_HOST=socket-ssh.local.com
+    # ALLOWED ORIGINS
+    # NOTE: ALLOWED_ORIGINS_DEV must include the server origin, otherwise the server rejects every WebSocket.
+    ALLOWED_ORIGINS_DEV=http://browseterm.local.com:9999,http://browseterm.local.com,http://localhost:9999
+    ALLOWED_ORIGINS_PROD=http://browseterm.local.com
     ```
 
 4. Run the development build script, if not already done.
     ```bash
     make dev_build
     ```
+    NOTE: `make dev_build` also builds the test-ssh image.
 
 5. Run the development setup script.
     ```bash
