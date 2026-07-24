@@ -1,6 +1,7 @@
 const {validateSchema} = require('./utils');
 const SSHChannel = require('./socketSSH/sshChannel');
 const SocketSSHClient = require('./socketSSH/socketSSHClient');
+const logger = require('./logger');
 
 
 class MessageHandler {
@@ -78,7 +79,7 @@ class EchoHandler extends MessageHandler {
             this.clientConnection.send(JSON.stringify({ message: this.data.message }));
         } catch (error) {
             // handle errors.
-            console.error('Error handling message:', error);
+            logger.error({ err: error }, 'Error handling echo message');
             // send errors to the socket connection.
             this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
@@ -143,7 +144,7 @@ class SSHConnectHandler extends MessageHandler {
             );
         } catch (error) {
             // handle errors.
-            console.error('Error handling message:', error);
+            logger.error({ err: error, ssh_hash: this.data.ssh_hash }, 'Error handling sshConnect message');
             // send errors to the socket connection.
             this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
@@ -198,7 +199,7 @@ class SSHSendHandler extends MessageHandler {
             this.requestHashStore.getRequestEntry(this.data.ssh_hash).sendDataToSSH(this.data.ssh_command);
         } catch (error) {
             // handle errors.
-            console.error('Error handling message:', error);
+            logger.error({ err: error, ssh_hash: this.data.ssh_hash }, 'Error handling sshSendData message');
             // send errors to the socket connection.
             this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
@@ -240,7 +241,7 @@ class SSHCloseHandler extends MessageHandler {
             this.requestHashStore.removeRequestEntry(this.data.ssh_hash);
         } catch (error) {
             // handle errors.
-            console.error('Error handling message:', error);
+            logger.error({ err: error, ssh_hash: this.data.ssh_hash }, 'Error handling sshClose message');
             // send errors to the socket connection.
             this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
@@ -318,7 +319,7 @@ class RequestHandler {
             const handler = this.getHandler();
             handler.handle(); // call the handle method.
         } catch (error) {
-            console.error('Error handling message:', error);
+            logger.error({ err: error, type: this.requestData && this.requestData.type }, 'Error handling message');
             this.clientConnection.send(JSON.stringify({ error: error.message }));
         }
     }

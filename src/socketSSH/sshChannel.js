@@ -1,4 +1,5 @@
 const { Client } = require('ssh2');
+const logger = require('../logger');
 
 
 class SSHChannel {
@@ -37,13 +38,13 @@ class SSHChannel {
             Upon ready we send a message and then assign a stream to our object.
             THIS SETS THE STREAM.
         */
-        console.log('SSH ready event fired - getting shell...');
+        logger.info('SSH ready event fired - getting shell');
         try {
             this.stream = await this.getSSHShell(); // assign it to the stream.
-            console.log('SSH shell acquired successfully');
+            logger.info('SSH shell acquired successfully');
             this.websocket.send(JSON.stringify({ message: "\r\n*** SSH CONNECTION ESTABLISHED ***\r\n" }));
         } catch(err) {
-            console.error('Error from SSH Shell: ', err);
+            logger.error({ err }, 'Error from SSH Shell');
             this.websocket.send(JSON.stringify({ error: err.message }));
         }
     }
@@ -59,7 +60,7 @@ class SSHChannel {
         /*
             Send error to the websocket.
         */
-        console.error('Error from SSH Connection:', error);
+        logger.error({ err: error }, 'Error from SSH Connection');
         this.websocket.send(JSON.stringify({ error: error.message }));
     }
 

@@ -3,6 +3,7 @@ const http = require('http');
 const RequestHashStore = require('./src/requestContext');
 const { RequestHandler } = require('./src/handler');
 const { authenticateRequest } = require('./src/authenticate');
+const logger = require('./src/logger');
 
 // Allowed origins for CORS (from environment or default)
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://browseterm.local.com:9999,http://localhost:9999').split(',');
@@ -19,7 +20,7 @@ const websocketServer = new WebSocket.Server({
     
     // Check if origin is allowed
     if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
-      console.log(`Rejected connection from origin: ${origin}`);
+      logger.warn({ origin }, 'Rejected connection from disallowed origin');
       callback(false, 403, 'Forbidden');
       return;
     }
@@ -34,7 +35,7 @@ const requestHashStore = new RequestHashStore();
 const connectionSessions = new WeakMap();
 
 websocketServer.on('connection', async (clientConnection, req) => {
-  console.log('Client connected', `Iteration {1}`);
+  logger.info('Client connected');
 
   // Authenticate session
   const isAuthenticated = await authenticateRequest(req);
@@ -56,7 +57,7 @@ websocketServer.on('connection', async (clientConnection, req) => {
   clientConnection.send(JSON.stringify({ type: 'ready', message: 'Server ready to accept commands' }));
 
   clientConnection.on('close', () => {
-    console.log('Client disconnected');
+    logger.info('Client disconnected');
     
     // Clean up all SSH sessions associated with this connection
     const sessions = connectionSessions.get(clientConnection);
@@ -64,12 +65,12 @@ websocketServer.on('connection', async (clientConnection, req) => {
       sessions.forEach((sshHash) => {
         const socketSSHClient = requestHashStore.getRequestEntry(sshHash);
         if (socketSSHClient) {
-          console.log(`Cleaning up SSH session: ${sshHash}`);
+          logger.info({ ssh_hash: sshHash }, 'Cleaning up SSH session');
           try {
             socketSSHClient.close();
             requestHashStore.removeRequestEntry(sshHash);
           } catch (error) {
-            console.error(`Error cleaning up session ${sshHash}:`, error);
+            logger.error({ err: error, ssh_hash: sshHash }, 'Error cleaning up SSH session');
           }
         }
       });
@@ -79,7 +80,7 @@ websocketServer.on('connection', async (clientConnection, req) => {
 });
 
 server.listen(8000, () => {
-  console.log('WS server listening on port 8000 (TLS handled by ingress)');
+  logger.info({ port: 8000 }, 'WS server listening (TLS handled by ingress)');
 });
 
 module.exports = server;

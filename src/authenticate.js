@@ -1,5 +1,6 @@
 const Redis = require('ioredis');
 const url = require('url');
+const logger = require('./logger');
 
 // Convert environment variables to integers where needed
 const REDIS_PORT = parseInt(process.env.REDIS_PORT, 10) || 6379;
@@ -25,7 +26,7 @@ async function authenticateRequest(req) {
   const wsToken = parsedUrl.query.token;
 
   if (!wsToken) {
-    console.log('No WebSocket token provided');
+    logger.warn('No WebSocket token provided');
     return false;
   }
 
@@ -34,7 +35,7 @@ async function authenticateRequest(req) {
   const sessionId = await redis.get(wsTokenKey);
   
   if (!sessionId) {
-    console.log('Invalid or expired WebSocket token');
+    logger.warn('Invalid or expired WebSocket token');
     return false;
   }
 
@@ -46,11 +47,11 @@ async function authenticateRequest(req) {
   const exists = await redis.exists(sessionKey);
 
   if (exists === 1) {
-    console.log('WebSocket token validated and consumed');
+    logger.info({ request_id: sessionId }, 'WebSocket token validated and consumed');
     return true;
   }
 
-  console.log('Token valid but session expired');
+  logger.warn({ request_id: sessionId }, 'Token valid but session expired');
   return false;
 }
 
