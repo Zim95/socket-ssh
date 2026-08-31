@@ -132,8 +132,12 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: socket-ssh
+  # Pinned to 1 for now: this all runs on a single 4-core/8GB dev VM, and multiple replicas
+  # fighting the same node for resources (rather than adding real capacity) has repeatedly
+  # made contention episodes worse, not better. Raise this once running on real multi-node
+  # capacity.
   minReplicas: 1
-  maxReplicas: 10
+  maxReplicas: 1
   metrics:
   - type: Resource
     resource:
@@ -183,6 +187,11 @@ metadata:
   namespace: ${NAMESPACE}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # socket-ssh sends no WS ping/pong keepalive, so nginx's default 60s proxy-read/send-timeout
+    # silently drops any interactive session idle for more than a minute (looks like a random
+    # disconnect to the user, not a real network issue). Raised to 1h to cover realistic idle gaps.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:
