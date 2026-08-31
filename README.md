@@ -1,6 +1,15 @@
 # Socket-SSH
 A websocket interface to SSH servers.
 
+## P11 - no more direct Redis access
+
+As of P11 (see `~/browseterm/p.md`'s "P11" section), `src/authenticate.js` no longer talks to
+Redis directly to validate/consume the one-time WebSocket token a client connects with - it calls
+Cloud's `POST /auth/websocket-tokens/consume` (public but possession-gated: holding a valid
+one-time token IS the authorization, same pattern P07 established for OAuth handoff/device-
+bootstrap redemption - no shared secret needed here). `ioredis` was removed from `package.json`
+entirely. One-time token semantics and terminal WebSocket/SSH behavior are otherwise unchanged.
+
 
 ## How to setup for development?
 Make sure you have docker installed. Works with docker desktop for mac.
@@ -24,12 +33,8 @@ Make sure you have docker installed. Works with docker desktop for mac.
     USER_NAME=<your-dockerhub-username>
     NAMESPACE=<your-namespace>
     HOST_DIR=<your-working-directory>
-    # REDIS CREDENTIALS
-    REDIS_HOST=<redis-service-name>
-    REDIS_PORT=<redis-port>	
-    REDIS_PASSWORD=<redis-password>
-    REDIS_USERNAME=<redis-username>
-    REDIS_DB=<redis-db>
+    # CLOUD (P11 - no more REDIS_* here, see the note above)
+    BROWSETERM_CLOUD_API_URL=http://browseterm.cloud.com:9999
     # SOCKET-SSH CONFIG
     SOCKET_SSH_HOST=socket-ssh.local.com
     # ALLOWED ORIGINS

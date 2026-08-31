@@ -60,16 +60,9 @@ spec:
             cpu: 1000m
             memory: 1Gi
         env:
-        - name: REDIS_HOST
-          value: "${REDIS_HOST}"
-        - name: REDIS_PORT
-          value: "${REDIS_PORT}"
-        - name: REDIS_USERNAME
-          value: "${REDIS_USERNAME}"
-        - name: REDIS_PASSWORD
-          value: "${REDIS_PASSWORD}"
-        - name: REDIS_DB
-          value: "${REDIS_DB}"
+        # P11: no more REDIS_* here - see the identical note in infra/deployment/deployment.yaml.
+        - name: BROWSETERM_CLOUD_API_URL
+          value: "${BROWSETERM_CLOUD_API_URL}"
         - name: ALLOWED_ORIGINS
           value: "${ALLOWED_ORIGINS_DEV}"
         volumeMounts:

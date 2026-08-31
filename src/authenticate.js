@@ -1,22 +1,20 @@
-const Redis = require('ioredis');
 const url = require('url');
 const logger = require('./logger');
 
-// Convert environment variables to integers where needed
-const REDIS_PORT = parseInt(process.env.REDIS_PORT, 10) || 6379;
-const REDIS_DB = parseInt(process.env.REDIS_DB, 10) || 0;
-
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: REDIS_PORT,
-  username: process.env.REDIS_USERNAME || undefined, // ACL username
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: REDIS_DB,
-});
+// P11 (see ~/browseterm/p.md's "P11" section): socket-ssh no longer holds a Redis credential of
+// its own. Same DNS convention every other component's default uses.
+const BROWSETERM_CLOUD_API_URL = process.env.BROWSETERM_CLOUD_API_URL || 'http://browseterm.cloud.com:9999';
 
 /**
- * Authenticate WebSocket request using one-time WebSocket token
- * Token is created by browseterm-server for authenticated users only
+ * Authenticate WebSocket request using one-time WebSocket token.
+ * Token is created by browseterm-server (Cloud, as of P07) for authenticated users only.
+ *
+ * P11: validation moved from a direct Redis GET+DEL against Cloud's Redis to a single call to
+ * Cloud's POST /auth/websocket-tokens/consume - public but possession-gated (holding a valid
+ * one-time token IS the authorization, same pattern P07 already established for OAuth handoff/
+ * device-bootstrap redemption), so no shared secret is needed here at all. Terminal
+ * WebSocket/SSH behavior is otherwise unchanged - this function's signature and return value
+ * (a plain boolean) are identical to before.
  * @param {IncomingMessage} req
  * @returns {Promise<boolean>} true if authenticated, false otherwise
  */
@@ -30,29 +28,31 @@ async function authenticateRequest(req) {
     return false;
   }
 
-  // Check if token exists and get linked session_id
-  const wsTokenKey = `ws_token:${wsToken}`;
-  const sessionId = await redis.get(wsTokenKey);
-  
-  if (!sessionId) {
-    logger.warn('Invalid or expired WebSocket token');
+  let response;
+  try {
+    response = await fetch(`${BROWSETERM_CLOUD_API_URL}/auth/websocket-tokens/consume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: wsToken }),
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Error reaching Cloud to consume WebSocket token');
     return false;
   }
 
-  // Delete the token immediately (one-time use)
-  await redis.del(wsTokenKey);
-  
-  // Verify the session still exists
-  const sessionKey = `session:${sessionId}`;
-  const exists = await redis.exists(sessionKey);
-
-  if (exists === 1) {
-    logger.info({ request_id: sessionId }, 'WebSocket token validated and consumed');
-    return true;
+  if (!response.ok) {
+    logger.warn({ status: response.status }, 'Invalid or expired WebSocket token');
+    return false;
   }
 
-  logger.warn({ request_id: sessionId }, 'Token valid but session expired');
-  return false;
+  const data = await response.json();
+  if (!data.valid) {
+    logger.warn('Cloud reported WebSocket token as invalid');
+    return false;
+  }
+
+  logger.info({ request_id: data.session_id }, 'WebSocket token validated and consumed');
+  return true;
 }
 
 module.exports = {

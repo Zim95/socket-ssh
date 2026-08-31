@@ -2,7 +2,7 @@
 
 # Check if enough arguments are provided
 if [ $# -lt 3 ]; then
-    echo "Usage: $0 <namespace> <absolute-path-to-current-working-directory> <repo-name>"
+    echo "Usage: $0 <namespace> <absolute-path-to-current-working-directory> <repo-name> <socket-ssh-host> <browseterm-cloud-api-url> <allowed-origins-dev>"
     exit 1
 fi
 
@@ -11,21 +11,14 @@ NAMESPACE=$1
 HOSTPATH=$2
 REPO_NAME=$3
 SOCKET_SSH_HOST=$4
-REDIS_HOST=$5
-REDIS_PORT=$6
-REDIS_USERNAME=$7
-REDIS_PASSWORD=$8
-REDIS_DB=$9
-ALLOWED_ORIGINS_DEV=${10}
+# P11: no more REDIS_* here - socket-ssh consumes ws_tokens via Cloud's HTTP API now.
+BROWSETERM_CLOUD_API_URL=$5
+ALLOWED_ORIGINS_DEV=$6
 
 export NAMESPACE=$NAMESPACE
 export HOSTPATH=$HOSTPATH
 export REPO_NAME=$REPO_NAME
 export SOCKET_SSH_HOST=$SOCKET_SSH_HOST
-export REDIS_HOST=$REDIS_HOST
-export REDIS_PORT=$REDIS_PORT
-export REDIS_USERNAME=$REDIS_USERNAME
-export REDIS_PASSWORD=$REDIS_PASSWORD
-export REDIS_DB=$REDIS_DB
+export BROWSETERM_CLOUD_API_URL=$BROWSETERM_CLOUD_API_URL
 export ALLOWED_ORIGINS_DEV=$ALLOWED_ORIGINS_DEV
 envsubst < $YAML | kubectl apply -f -
