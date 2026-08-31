@@ -9,12 +9,12 @@ dev_build:
 
 dev_setup:
 	./scripts/development/development-setup.sh \
-		$(NAMESPACE) \
-		$(HOST_DIR) \
-		$(REPO_NAME) \
-		$(SOCKET_SSH_HOST) \
-		$(BROWSETERM_CLOUD_API_URL) \
-		$(ALLOWED_ORIGINS_DEV)
+		"$(NAMESPACE)" \
+		"$(HOST_DIR)" \
+		"$(REPO_NAME)" \
+		"$(SOCKET_SSH_HOST)" \
+		"$(BROWSETERM_CLOUD_API_URL)" \
+		"$(ALLOWED_ORIGINS_DEV)"
 
 dev_teardown:
 	./scripts/development/development-teardown.sh $(NAMESPACE)
@@ -25,11 +25,11 @@ prod_build:
 
 prod_setup:
 	./scripts/deployment/setup.sh \
-		$(NAMESPACE) \
-		$(REPO_NAME) \
-		$(SOCKET_SSH_HOST) \
-		$(BROWSETERM_CLOUD_API_URL) \
-		$(ALLOWED_ORIGINS_PROD)
+		"$(NAMESPACE)" \
+		"$(REPO_NAME)" \
+		"$(SOCKET_SSH_HOST)" \
+		"$(BROWSETERM_CLOUD_API_URL)" \
+		"$(ALLOWED_ORIGINS_PROD)"
 
 prod_teardown:
 	./scripts/deployment/teardown.sh $(NAMESPACE)
