@@ -29,7 +29,9 @@ prod_setup:
 		"$(REPO_NAME)" \
 		"$(SOCKET_SSH_HOST)" \
 		"$(BROWSETERM_CLOUD_API_URL)" \
-		"$(ALLOWED_ORIGINS_PROD)"
+		"$(ALLOWED_ORIGINS_PROD)" \
+		"$(CLOUD_INGRESS_HOST)" \
+		"$(CLOUD_INGRESS_HOST_IP)"
 
 prod_teardown:
 	./scripts/deployment/teardown.sh $(NAMESPACE)
