@@ -17,7 +17,7 @@ const DEVICE_TOKEN = process.env.DEVICE_TOKEN || '';
  * shouldn't distinguish those cases: "invalid ticket" is the only signal a client ever needs.
  *
  * @param {string} ticket
- * @returns {Promise<{ssh_host: string, ssh_port: number, ssh_username: string, ssh_password: string} | null>}
+ * @returns {Promise<{container_id: string, ssh_host: string, ssh_port: number, ssh_username: string, ssh_password: string} | null>}
  */
 async function consumeTerminalTicket(ticket) {
   if (!DEVICE_TOKEN) {
@@ -48,6 +48,7 @@ async function consumeTerminalTicket(ticket) {
   const data = await response.json();
   logger.info({ container_id: data.container_id }, 'Terminal ticket consumed');
   return {
+    container_id: data.container_id,  // for log context only - SSHConnectHandler never reads this
     ssh_host: data.ssh_host,
     ssh_port: data.ssh_port,
     ssh_username: data.ssh_username,

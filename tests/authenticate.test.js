@@ -44,7 +44,7 @@ test('valid ticket calls Cloud with the device Bearer token and returns connecti
 
     const result = await consumeTerminalTicket('valid-ticket');
 
-    expect(result).toEqual({ ssh_host: '10.42.0.5', ssh_port: 22, ssh_username: 'u', ssh_password: 'p' });
+    expect(result).toEqual({ container_id: 'c1', ssh_host: '10.42.0.5', ssh_port: 22, ssh_username: 'u', ssh_password: 'p' });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, options] = global.fetch.mock.calls[0];
     expect(url).toContain('/internal/terminal-tickets/consume');

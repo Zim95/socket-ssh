@@ -32,7 +32,20 @@ const VALID_SSH_TARGET = {
     ssh_host: 'test_host', ssh_port: 22, ssh_username: 'test_username', ssh_password: 'test_password'
 };
 
-consumeTerminalTicket.mockImplementation(async (ticket) => (ticket === VALID_TICKET ? VALID_SSH_TARGET : null));
+// A second, genuinely single-use ticket (distinct from VALID_TICKET, which several tests below
+// reuse and therefore must stay valid forever) - lets one test prove socket-ssh treats Cloud's
+// "already consumed" response as a rejection, exactly like an invalid/expired one.
+const SINGLE_USE_TICKET = 'single-use-ticket';
+const consumedTickets = new Set();
+
+consumeTerminalTicket.mockImplementation(async (ticket) => {
+    if (ticket === VALID_TICKET) return VALID_SSH_TARGET;
+    if (ticket === SINGLE_USE_TICKET && !consumedTickets.has(ticket)) {
+        consumedTickets.add(ticket);
+        return VALID_SSH_TARGET;
+    }
+    return null;
+});
 
 let server;
 
@@ -77,6 +90,17 @@ function authenticate(serverConnection, ticket) {
 }
 
 
+test('a disallowed origin is rejected at the WebSocket upgrade itself', (done) => {
+    const ws = new WebSocket('ws://localhost:8000', { headers: { Origin: 'http://evil.example.com' } });
+    ws.on('open', () => done(new Error('Should never open for a disallowed origin')));
+    ws.on('unexpected-response', (req, res) => {
+        expect(res.statusCode).toEqual(403);
+        done();
+    });
+    ws.on('error', () => { /* ws also emits a generic error alongside unexpected-response */ });
+});
+
+
 test('a non-authenticate first message is rejected and the connection is closed', (done) => {
     const serverConnection = openConnection();
     serverConnection.on('open', () => serverConnection.send('{"type": "echo", "data": {"message": "Hello World"}}'));
@@ -100,6 +124,27 @@ test('an invalid ticket is rejected and the connection is closed', (done) => {
         done();
     });
     serverConnection.on('error', (err) => done(err));
+});
+
+
+test('replaying an already-consumed ticket on a second connection is rejected', (done) => {
+    const first = openConnection();
+    authenticate(first, SINGLE_USE_TICKET).then(() => {
+        // First use succeeded - now a second connection tries the exact same ticket string.
+        const second = openConnection();
+        second.on('open', () => second.send(JSON.stringify({ type: 'authenticate', data: { ticket: SINGLE_USE_TICKET } })));
+        second.on('message', () => done(new Error('A replayed ticket must never authenticate')));
+        second.on('close', (code) => {
+            try {
+                expect(code).toEqual(4401);
+                first.close();
+                done();
+            } catch (err) {
+                done(err);
+            }
+        });
+        second.on('error', (err) => done(err));
+    }).catch(done);
 });
 
 

@@ -10,8 +10,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://browseterm.local
 
 // remotetunelling.md Phase 7: "Require an authentication message within approximately five
 // seconds." A connection that never authenticates within this window is closed - it never got
-// to do anything else in the meantime (see the message handler below).
-const AUTH_TIMEOUT_MS = 5000;
+// to do anything else in the meantime (see the message handler below). Configurable so tests can
+// exercise the timeout itself without a real 5s wait, matching how every other interval/threshold
+// in this project (HEARTBEAT_INTERVAL_SECONDS, TUNNEL_OFFLINE_THRESHOLD_SECONDS, ...) is env-driven.
+const AUTH_TIMEOUT_MS = parseInt(process.env.AUTH_TIMEOUT_MS || '5000', 10);
 
 // Use plain HTTP/WS server
 // TLS is handled by the ingress controller in production
@@ -25,7 +27,7 @@ const websocketServer = new WebSocket.Server({
 
     // Check if origin is allowed
     if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
-      logger.warn({ origin }, 'Rejected connection from disallowed origin');
+      logger.warn({ origin }, 'terminal.websocket_rejected: disallowed origin');
       callback(false, 403, 'Forbidden');
       return;
     }
@@ -45,7 +47,7 @@ const connectionSessions = new WeakMap();
 const connectionAuth = new WeakMap();
 
 websocketServer.on('connection', (clientConnection, req) => {
-  logger.info('Client connected');
+  logger.info({ origin: req.headers.origin }, 'terminal.websocket_connected');
 
   connectionAuth.set(clientConnection, { authenticated: false, sshTarget: null });
   connectionSessions.set(clientConnection, new Set());
@@ -53,7 +55,7 @@ websocketServer.on('connection', (clientConnection, req) => {
   const authTimeout = setTimeout(() => {
     const auth = connectionAuth.get(clientConnection);
     if (auth && !auth.authenticated) {
-      logger.warn('Client did not authenticate within the timeout, closing');
+      logger.warn('terminal.websocket_rejected: authentication timeout');
       clientConnection.close(4401, 'Authentication timeout');
     }
   }, AUTH_TIMEOUT_MS);
@@ -70,30 +72,32 @@ websocketServer.on('connection', (clientConnection, req) => {
       try {
         parsed = JSON.parse(message);
       } catch (error) {
-        logger.warn({ err: error }, 'Unparseable message before authentication, closing');
+        logger.warn({ err: error }, 'terminal.websocket_rejected: unparseable message before authentication');
         clientConnection.close(4400, 'Invalid message');
         return;
       }
       if (parsed.type !== 'authenticate') {
-        logger.warn({ type: parsed.type }, 'Rejected non-authenticate message before authentication');
+        logger.warn({ type: parsed.type }, 'terminal.websocket_rejected: non-authenticate message before authentication');
         clientConnection.close(4401, 'Not authenticated');
         return;
       }
       const ticket = parsed.data && parsed.data.ticket;
       if (!ticket) {
+        logger.warn('terminal.websocket_rejected: authenticate message missing ticket');
         clientConnection.close(4400, 'Missing ticket');
         return;
       }
 
       const sshTarget = await consumeTerminalTicket(ticket);
       if (!sshTarget) {
-        logger.warn('Terminal ticket rejected, closing connection');
+        logger.warn('terminal.websocket_rejected: ticket invalid, expired, or already consumed');
         clientConnection.close(4401, 'Invalid or expired ticket');
         return;
       }
 
       clearTimeout(authTimeout);
       connectionAuth.set(clientConnection, { authenticated: true, sshTarget });
+      logger.info({ container_id: sshTarget.container_id }, 'terminal.websocket_authenticated');
       clientConnection.send(JSON.stringify({ type: 'ready', message: 'Server ready to accept commands' }));
       return;
     }
@@ -109,7 +113,8 @@ websocketServer.on('connection', (clientConnection, req) => {
   });
 
   clientConnection.on('close', () => {
-    logger.info('Client disconnected');
+    const auth = connectionAuth.get(clientConnection);
+    logger.info({ container_id: auth && auth.sshTarget && auth.sshTarget.container_id }, 'terminal.websocket_disconnected');
     clearTimeout(authTimeout);
 
     // Clean up all SSH sessions associated with this connection
@@ -132,8 +137,11 @@ websocketServer.on('connection', (clientConnection, req) => {
   });
 });
 
-server.listen(8000, () => {
-  logger.info({ port: 8000 }, 'WS server listening (TLS handled by ingress)');
+// Configurable so tests can run their own server instance on a different port without
+// conflicting with other test files' servers when Jest runs files in parallel workers.
+const PORT = parseInt(process.env.PORT || '8000', 10);
+server.listen(PORT, () => {
+  logger.info({ port: PORT }, 'WS server listening (TLS handled by ingress)');
 });
 
 module.exports = server;
