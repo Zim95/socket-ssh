@@ -214,3 +214,125 @@ spec:
             name: socket-ssh-service
             port:
               number: 8000
+---
+# remotetunelling.md Phase 1/2: gives socket-ssh a public, outbound-dialed HTTPS/WSS endpoint so a
+# browser off this LAN can still reach it, without port-forwarding the home router or exposing
+# this cluster's API/MinIO/container-maker. Points at socket-ssh-service (the existing stable
+# ClusterIP above) over in-cluster DNS - never a port-forward.
+#
+# Port 4040 (ngrok's own local inspection API - what the Checkpoint B registrar reads the current
+# public URL from) is deliberately NOT given a Service: only a sidecar sharing this Pod's network
+# namespace can reach it via localhost, keeping it unreachable from anywhere else in the cluster,
+# let alone the internet, matching remotetunelling.md's "keep the ngrok inspection/admin API
+# private" requirement.
+#
+# Image pinned by digest (ngrok/ngrok:3, resolved 2026-09-18) rather than a bare tag, matching
+# "pinned and documented ngrok image version, not latest".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ngrok-agent
+  namespace: ${NAMESPACE}
+  labels:
+    app: ngrok-agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # only one agent should ever hold this authtoken's tunnel at a time
+  selector:
+    matchLabels:
+      app: ngrok-agent
+  template:
+    metadata:
+      labels:
+        app: ngrok-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: ngrok-agent
+        image: ngrok/ngrok@sha256:14d80d083e5b53145f416bbbd36238336c9de4016c43fd950eb2eb845670583b
+        imagePullPolicy: IfNotPresent
+        args:
+        - "http"
+        - "socket-ssh-service.${NAMESPACE}.svc.cluster.local:8000"
+        - "--log=stdout"
+        env:
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ngrok-credentials
+              key: NGROK_AUTHTOKEN
+        ports:
+        - name: inspect
+          containerPort: 4040
+          protocol: TCP
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /api/tunnels
+            port: 4040
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/tunnels
+            port: 4040
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      # remotetunelling.md Phase 3 - sidecar in the SAME Pod (shares the ngrok-agent container's
+      # network namespace) so it can reach ngrok's own inspection API over plain localhost:4040,
+      # with nothing else in the cluster (let alone the internet) able to reach that port at all.
+      - name: tunnel-registrar
+        image: ${REPO_NAME}/tunnel-registrar:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: BROWSETERM_CLOUD_API_URL
+          value: "${BROWSETERM_CLOUD_API_URL}"
+        # DEVICE_ID/DEVICE_TOKEN come from device-credentials, synced from Desktop's own Keychain
+        # by desktop/local_stack.py - deliberately NOT the shared browseterm-internal-api-token
+        # Secret every other workload here uses, since the tunnel endpoints are per-device Bearer
+        # auth, not the shared internal-service secret.
+        - name: DEVICE_ID
+          valueFrom:
+            secretKeyRef:
+              name: device-credentials
+              key: DEVICE_ID
+        - name: DEVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: device-credentials
+              key: DEVICE_TOKEN
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 15
