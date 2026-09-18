@@ -81,6 +81,15 @@ spec:
           value: "${BROWSETERM_CLOUD_API_URL}"
         - name: ALLOWED_ORIGINS
           value: "${ALLOWED_ORIGINS_PROD}"
+        # remotetunelling.md Phase 5/7: src/authenticate.js uses this device's own Bearer
+        # credential to consume a terminal ticket via Cloud's internal endpoint - same
+        # device-credentials Secret the tunnel-registrar sidecar (ngrok-agent Deployment below)
+        # already reads, synced from Desktop's Keychain by desktop/local_stack.py.
+        - name: DEVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: device-credentials
+              key: DEVICE_TOKEN
         resources:
           requests:
             memory: "256Mi"
