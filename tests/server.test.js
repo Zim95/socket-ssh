@@ -8,251 +8,190 @@
         - sshConnect
         - sshSendData
         - sshClose - This needs to be added.
+
+    remotetunelling.md Phase 7: every connection is now unauthenticated until it sends a valid
+    {"type": "authenticate", "data": {"ticket": ...}} first message. src/authenticate.js's
+    consumeTerminalTicket is mocked here (it talks to the real Cloud otherwise) - 'valid-ticket'
+    resolves to a fixed SSH target, anything else resolves to null, mirroring what Cloud's own
+    ticket-consume endpoint would do for a good vs. bad/expired/replayed ticket.
 */
 
 
 const WebSocket = require('ws');
-const { readCertificates } = require('../src/utils');
 // mock the ssh2 module. We need to do this here, because we need to make sure, the mock happens before it is imported elsewhere.
 jest.mock('ssh2', () => {
     return {
         Client: require('./__mocks__/mock.ssh2')  // SSH2 exports a Client class, so we need to do the same.
     }
 });
-let httpsServer;
-const certificates = readCertificates();
+jest.mock('../src/authenticate');
+const { consumeTerminalTicket } = require('../src/authenticate');
+
+const VALID_TICKET = 'valid-ticket';
+const VALID_SSH_TARGET = {
+    ssh_host: 'test_host', ssh_port: 22, ssh_username: 'test_username', ssh_password: 'test_password'
+};
+
+consumeTerminalTicket.mockImplementation(async (ticket) => (ticket === VALID_TICKET ? VALID_SSH_TARGET : null));
+
+let server;
 
 // setup
 beforeAll(() => {
-    httpsServer = require('../server');
+    server = require('../server');
 });
 
 
 afterAll((done) => {
-    httpsServer.close(() => done());
+    server.close(() => done());
     jest.resetAllMocks();
 });
 
 
-test('on echo - Should receive the same message back', (done) => {
-    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
-        cert: certificates['client.crt'],
-        key: certificates['client.key'],
-        ca: certificates['ca.crt'],
-        rejectUnauthorized: true
-    });
+function openConnection() {
+    // TLS is handled by the ingress controller in production - server.js itself is plain
+    // http/ws, matching how it actually runs (see server.js's own comment on this). A plain
+    // Node ws client sends no Origin header by default, but server.js's verifyClient rejects
+    // any connection without one of its allowed origins, so it must be set explicitly here.
+    return new WebSocket('ws://localhost:8000', { headers: { Origin: 'http://localhost:9999' } });
+}
 
-    // Open runs once the connection is established.
-    // we do a client.send. This triggers the 'message` event on the clientConnection.
+// Opens a connection, authenticates it with the given ticket, and resolves once the server's
+// "ready" message arrives (or rejects/never-resolves if the server closes instead - callers that
+// expect a close handle that themselves).
+function authenticate(serverConnection, ticket) {
+    return new Promise((resolve, reject) => {
+        serverConnection.on('open', () => serverConnection.send(
+            JSON.stringify({ type: 'authenticate', data: { ticket } })
+        ));
+        serverConnection.once('message', (message) => {
+            const parsed = JSON.parse(message.toString());
+            if (parsed.type === 'ready') {
+                resolve();
+            } else {
+                reject(new Error(`Expected a ready message, got: ${message.toString()}`));
+            }
+        });
+        serverConnection.on('error', reject);
+    });
+}
+
+
+test('a non-authenticate first message is rejected and the connection is closed', (done) => {
+    const serverConnection = openConnection();
     serverConnection.on('open', () => serverConnection.send('{"type": "echo", "data": {"message": "Hello World"}}'));
-
-    // To receive the message, we need to listen for the 'message' event on the clientConnection.
-    // This event is triggered when the clientConnection hits the send method.
-    serverConnection.on('message', (message) => {
-        try {
-            // here we expect the message to be the same as the one we sent.
-            expect(JSON.parse(message.toString())).toEqual({ message: 'Hello World' });
-            serverConnection.close(); // This triggeres the on close event on the server.
-        } catch (err) {
-            console.log('Error in test:', err);
-            done(err);  // Immediately end the test with done if there is an error.
-        }
+    serverConnection.on('message', () => done(new Error('Should not have received any message before authenticating')));
+    serverConnection.on('close', (code) => {
+        expect(code).toEqual(4401);
+        done();
     });
-
-    // This is triggered when the server sends websocket.close()
-    serverConnection.on('close', () => setTimeout(() => done(), 1000)); // This gets called when the server sends clientConnection.close()
-    // SetImmediate is used to schedule the done callback to be called immediately after the current operation completes.
-
-    // This is triggered when the client encounters an error.
     serverConnection.on('error', (err) => done(err));
 });
 
 
-test('on sshConnect - Should get SSH connected message back', (done) => {
-    /*
-        Here we mock the actual connect method and return the values ourselves.
-        So that we can be sure that the rest of the code related to the server is working.
-        We will perform the actual test in ssh.test.js.
-    */
-
-    // create the dummy mock for getSSHClient function. It needs to have a connect method that returns test connection string.
-    // const mockGetSSHClient = jest.fn();
-    // mockGetSSHClient.mockReturnValue({
-    //     connect: jest.fn().mockResolvedValue('Test Connection String')
-    // });
-
-    // const SSHChannel = require('../src/socketSSH/sshChannel');
-    //  jest.spyOn(SSHChannel.getSSHClient, 'getSSHClient').mockImplementation(mockGetSSHClient);  // this does not work for arrow methods.
-    
-    /*
-    Mocking Arrow methods:
-    ----------------------
-    1. Arrow functions when used in classes, are not MOCKABLE.
-    2. This is because arrow methods are instance variables and not part of PROTOTYPE.
-    3. So, we can either create an instance of the class and then mock the method. This would not work because we will not use this instance during runtime.
-    4. Or we can mock the entire module and then use the mock value. To do this, we need to mock everything, even the assigning of websockets and everything which beats the purpose.
-    5. We either mock the entire module, or remove arrow functions entirely and use regular methods. While using regular methods, we need to use binding.
-    6. This is because regular methods are part of PROTOTYPE and are MOCKABLE.
-
-    CHATGPT:
-    ---------
-    Why Arrow Functions in Classes Are Hard to Mock?
-    In JavaScript, arrow functions used as class methods are not added to the class's prototype. Instead, they become properties of each instance. This design choice makes them inaccessible to tools like jest.spyOn, which rely on the prototype chain to replace or monitor method implementations. ​
-
-    Options to Mock Arrow Functions in Classes
-    Mock the Entire Module: You can mock the entire module containing the class using jest.mock(). This approach allows you to replace the class with a mock implementation, including its methods. However, this can be cumbersome if the module has many exports or complex dependencies.​
-    1. Refactor to Use Regular Methods: Consider refactoring arrow functions into regular class methods. Regular methods are added to the class's prototype, making them accessible to jest.spyOn. This change enables more straightforward and granular mocking.​
-    2. Use Dependency Injection: Instead of instantiating dependencies within the class, inject them from outside. This practice allows you to pass mocked dependencies during testing, facilitating better control over the class's behavior in different scenarios. ​
-    */
-
-    /*
-    Update, we are going to create a mock class for SSH2.
-    */
-
-    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
-        cert: certificates['client.crt'],
-        key: certificates['client.key'],
-        ca: certificates['ca.crt'],
-        rejectUnauthorized: true
-    });
-    // now we will trigger connect.
+test('an invalid ticket is rejected and the connection is closed', (done) => {
+    const serverConnection = openConnection();
     serverConnection.on('open', () => serverConnection.send(
-        JSON.stringify({
-            type: 'sshConnect',
-            data: {
-                ssh_hash: 'test_hash_connect',
-                ssh_host: 'test_host',
-                ssh_port: 22,
-                ssh_username: 'test_username',
-                ssh_password: 'test_password'
-            }
-        })
+        JSON.stringify({ type: 'authenticate', data: { ticket: 'not-a-real-ticket' } })
     ));
+    serverConnection.on('message', () => done(new Error('Should not have received any message for an invalid ticket')));
+    serverConnection.on('close', (code) => {
+        expect(code).toEqual(4401);
+        done();
+    });
+    serverConnection.on('error', (err) => done(err));
+});
 
-    // now we will listen for the message.
+
+test('on echo - Should receive the same message back once authenticated', (done) => {
+    const serverConnection = openConnection();
+
+    authenticate(serverConnection, VALID_TICKET).then(() => {
+        serverConnection.send('{"type": "echo", "data": {"message": "Hello World"}}');
+    }).catch(done);
+
+    // The first message is the "ready" ack consumed by authenticate(); the second is the echo.
+    let sawReady = false;
     serverConnection.on('message', (message) => {
+        if (!sawReady) { sawReady = true; return; }
         try {
-            expect(message.toString()).toEqual('\r\n*** SSH CONNECTION ESTABLISHED ***\r\n');
+            expect(JSON.parse(message.toString())).toEqual({ message: 'Hello World' });
             serverConnection.close();
         } catch (err) {
-            console.log('Error in test:', err);
-            done(err);  // Immediately end the test with done if there is an error.
+            done(err);
         }
     });
 
-    // if things are fine, we close.
     serverConnection.on('close', () => setTimeout(() => done(), 1000));
-
-    // if things go wrong, we throw an error and close the connection.
     serverConnection.on('error', (err) => done(err));
 });
 
 
-test('on sshSendData - Should get the response back from SSH Server', (done) => {
+test('on sshConnect - the SSH target comes from the authenticated ticket, never the client', (done) => {
     /*
-        Here we mock the actual connect method and return the values ourselves.
-        So that we can be sure that the rest of the code related to the server is working.
-        We will perform the actual test in ssh.test.js.
+        The client sends no ssh_host/ssh_port/ssh_username/ssh_password at all (the schema no
+        longer accepts them - see src/handler.js's SSHConnectHandler). If the connection reaches
+        "SSH CONNECTION ESTABLISHED" anyway, the target necessarily came from
+        VALID_SSH_TARGET (the mocked ticket's own resolved target), which is exactly the
+        behavior remotetunelling.md Phase 7 requires.
     */
-    // create the dummy mock for getSSHClient function. It needs to have a connect method that returns test connection string.
-    // const mockGetSSHClient = jest.fn();
-    // mockGetSSHClient.mockReturnValue({
-    //     connect: jest.fn().mockResolvedValue('Test Connection String')
-    // });
+    const serverConnection = openConnection();
 
-    // const SSHChannel = require('../src/socketSSH/sshChannel');
-    //  jest.spyOn(SSHChannel.getSSHClient, 'getSSHClient').mockImplementation(mockGetSSHClient);  // this does not work for arrow methods.
-    
-    /*
-    Mocking Arrow methods:
-    ----------------------
-    1. Arrow functions when used in classes, are not MOCKABLE.
-    2. This is because arrow methods are instance variables and not part of PROTOTYPE.
-    3. So, we can either create an instance of the class and then mock the method. This would not work because we will not use this instance during runtime.
-    4. Or we can mock the entire module and then use the mock value. To do this, we need to mock everything, even the assigning of websockets and everything which beats the purpose.
-    5. We either mock the entire module, or remove arrow functions entirely and use regular methods. While using regular methods, we need to use binding.
-    6. This is because regular methods are part of PROTOTYPE and are MOCKABLE.
+    authenticate(serverConnection, VALID_TICKET).then(() => {
+        serverConnection.send(
+            JSON.stringify({ type: 'sshConnect', data: { ssh_hash: 'test_hash_connect' } })
+        );
+    }).catch(done);
 
-    CHATGPT:
-    ---------
-    Why Arrow Functions in Classes Are Hard to Mock?
-    In JavaScript, arrow functions used as class methods are not added to the class's prototype. Instead, they become properties of each instance. This design choice makes them inaccessible to tools like jest.spyOn, which rely on the prototype chain to replace or monitor method implementations. ​
-
-    Options to Mock Arrow Functions in Classes
-    Mock the Entire Module: You can mock the entire module containing the class using jest.mock(). This approach allows you to replace the class with a mock implementation, including its methods. However, this can be cumbersome if the module has many exports or complex dependencies.​
-    1. Refactor to Use Regular Methods: Consider refactoring arrow functions into regular class methods. Regular methods are added to the class's prototype, making them accessible to jest.spyOn. This change enables more straightforward and granular mocking.​
-    2. Use Dependency Injection: Instead of instantiating dependencies within the class, inject them from outside. This practice allows you to pass mocked dependencies during testing, facilitating better control over the class's behavior in different scenarios. ​
-    */
-
-    /*
-    Update, we are going to create a mock class for SSH2.
-    */
-
-    const serverConnection = new WebSocket('wss://socket-ssh-development-service:8000', {
-        cert: certificates['client.crt'],
-        key: certificates['client.key'],
-        ca: certificates['ca.crt'],
-        rejectUnauthorized: true
+    let sawReady = false;
+    serverConnection.on('message', (message) => {
+        if (!sawReady) { sawReady = true; return; }
+        try {
+            expect(JSON.parse(message.toString())).toEqual({ message: '\r\n*** SSH CONNECTION ESTABLISHED ***\r\n' });
+            serverConnection.close();
+        } catch (err) {
+            done(err);
+        }
     });
+
+    serverConnection.on('close', () => setTimeout(() => done(), 1000));
+    serverConnection.on('error', (err) => done(err));
+});
+
+
+test('on sshSendData - Should get the response back from SSH Server once authenticated', (done) => {
+    const serverConnection = openConnection();
     let connectionEstablished = false;
 
-    // now we will trigger connect.
-    serverConnection.on('open', () => {
+    authenticate(serverConnection, VALID_TICKET).then(() => {
         serverConnection.send(
-            JSON.stringify({
-                type: 'sshConnect',
-                data: {
-                    ssh_hash: 'test_hash_send',
-                    ssh_host: 'test_host',
-                    ssh_port: 22,
-                    ssh_username: 'test_username',
-                    ssh_password: 'test_password'
-                }
-            })
+            JSON.stringify({ type: 'sshConnect', data: { ssh_hash: 'test_hash_send' } })
         );
-    });
+    }).catch(done);
 
-    // now we will listen for the message.
+    let sawReady = false;
     serverConnection.on('message', (message) => {
-        /*
-        There will be two types of messages:
-        1. Connection Established.
-        2. Command Response.
-
-        If !connectionEstablished meaning connection has not been established yet, then we expect the message to be the "connection established" message. Because a connection needs to be established first.
-        If connectionEstablished, then we expect the message to be the command response.
-        */
+        if (!sawReady) { sawReady = true; return; }
         try {
             if (!connectionEstablished) {
-                // First verify we got the connection established message
-                expect(message.toString()).toEqual('\r\n*** SSH CONNECTION ESTABLISHED ***\r\n');
+                expect(JSON.parse(message.toString())).toEqual({ message: '\r\n*** SSH CONNECTION ESTABLISHED ***\r\n' });
                 connectionEstablished = true;
-                
-                // Now send the command
                 serverConnection.send(
                     JSON.stringify({
                         type: 'sshSendData',
-                        data: {
-                            ssh_hash: 'test_hash_send',
-                            ssh_command: 'test_command'
-                        }
+                        data: { ssh_hash: 'test_hash_send', ssh_command: 'test_command' }
                     })
                 );
             } else {
-                // Now verify we got the command response
-                expect(message.toString()).toEqual('mock shell output\n');
+                expect(JSON.parse(message.toString())).toEqual({ message: 'mock shell output\n' });
                 serverConnection.close();
             }
         } catch (err) {
-            console.log('Error in test:', err);
-            done(err);  // Immediately end the test with done if there is an error.
+            done(err);
         }
     });
 
-    // if things are fine, we close.
     serverConnection.on('close', () => setTimeout(() => done(), 1000));
-
-    // if things go wrong, we throw an error and close the connection.
     serverConnection.on('error', (err) => done(err));
 });
 
@@ -263,12 +202,12 @@ test('on sshClose - Should close the SSH connection', (done) => {
         So that we can be sure that the rest of the code related to the server is working.
         We will perform the actual test in ssh.test.js.
     */
-    
+
     /*
         1. First we establish the connection.
         2. Then we disconnect. We should get a disconnected message back.
 
-        NOTE: We have already tested the socketSSHClient close method in ssh.test.js. 
+        NOTE: We have already tested the socketSSHClient close method in ssh.test.js.
               We only need to test the socket side of things here.
     */
 

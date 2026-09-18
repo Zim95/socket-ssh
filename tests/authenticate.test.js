@@ -1,13 +1,10 @@
 /*
-    P11 (see ~/browseterm/p.md's "P11" section): authenticateRequest no longer talks to Redis
-    directly - it calls Cloud's POST /auth/websocket-tokens/consume. These tests mock global
-    fetch instead of ioredis.
+    remotetunelling.md Phase 5/7: authenticate.js no longer validates a plain possession-gated
+    websocket token - it consumes a single-use terminal ticket via Cloud's
+    Bearer-device-token-gated /internal/terminal-tickets/consume, using this device's own
+    DEVICE_TOKEN (never the client-supplied query-param token the old flow used).
 */
-const { authenticateRequest } = require('../src/authenticate');
-
-function mockReq(query) {
-    return { url: `/?${new URLSearchParams(query).toString()}` };
-}
+const originalDeviceToken = process.env.DEVICE_TOKEN;
 
 function mockFetchResponse(ok, status, body) {
     return {
@@ -18,61 +15,69 @@ function mockFetchResponse(ok, status, body) {
 }
 
 beforeEach(() => {
+    jest.resetModules();
     global.fetch = jest.fn();
+    process.env.DEVICE_TOKEN = 'this-devices-token';
 });
 
 afterEach(() => {
     jest.resetAllMocks();
+    process.env.DEVICE_TOKEN = originalDeviceToken;
 });
 
-test('missing token returns false without calling Cloud', async () => {
-    const result = await authenticateRequest(mockReq({}));
-    expect(result).toBe(false);
+test('missing DEVICE_TOKEN returns null without calling Cloud', async () => {
+    delete process.env.DEVICE_TOKEN;
+    const { consumeTerminalTicket } = require('../src/authenticate');
+    const result = await consumeTerminalTicket('some-ticket');
+    expect(result).toBeNull();
     expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test('valid token calls Cloud consume endpoint and returns true', async () => {
+test('valid ticket calls Cloud with the device Bearer token and returns connection info', async () => {
     global.fetch.mockResolvedValue(
-        mockFetchResponse(true, 200, { valid: true, session_id: 's1', user_id: 'u1' })
+        mockFetchResponse(true, 200, {
+            container_id: 'c1', ssh_host: '10.42.0.5', ssh_port: 22,
+            ssh_username: 'u', ssh_password: 'p',
+        })
     );
+    const { consumeTerminalTicket } = require('../src/authenticate');
 
-    const result = await authenticateRequest(mockReq({ token: 'valid-token' }));
+    const result = await consumeTerminalTicket('valid-ticket');
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ssh_host: '10.42.0.5', ssh_port: 22, ssh_username: 'u', ssh_password: 'p' });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toContain('/auth/websocket-tokens/consume');
+    expect(url).toContain('/internal/terminal-tickets/consume');
     expect(options.method).toBe('POST');
-    expect(JSON.parse(options.body)).toEqual({ token: 'valid-token' });
+    expect(options.headers['Authorization']).toBe('Bearer this-devices-token');
+    expect(JSON.parse(options.body)).toEqual({ ticket: 'valid-ticket' });
 });
 
-test('Cloud reports invalid token (401) returns false', async () => {
-    global.fetch.mockResolvedValue(mockFetchResponse(false, 401, { valid: false }));
-    const result = await authenticateRequest(mockReq({ token: 'expired-token' }));
-    expect(result).toBe(false);
+test('Cloud rejects the ticket (401) returns null', async () => {
+    global.fetch.mockResolvedValue(mockFetchResponse(false, 401, { error: 'Invalid or expired ticket' }));
+    const { consumeTerminalTicket } = require('../src/authenticate');
+    const result = await consumeTerminalTicket('expired-ticket');
+    expect(result).toBeNull();
 });
 
-test('Cloud reachable but reports valid=false returns false', async () => {
-    // Defensive: even a 200 with valid=false should never authenticate.
-    global.fetch.mockResolvedValue(mockFetchResponse(true, 200, { valid: false }));
-    const result = await authenticateRequest(mockReq({ token: 'weird-response' }));
-    expect(result).toBe(false);
-});
-
-test('network failure reaching Cloud returns false, does not throw', async () => {
+test('network failure reaching Cloud returns null, does not throw', async () => {
     global.fetch.mockRejectedValue(new Error('connection refused'));
-    const result = await authenticateRequest(mockReq({ token: 'any-token' }));
-    expect(result).toBe(false);
+    const { consumeTerminalTicket } = require('../src/authenticate');
+    const result = await consumeTerminalTicket('any-ticket');
+    expect(result).toBeNull();
 });
 
-test('second consumption of the same token fails (single-use, mirrored from Cloud)', async () => {
+test('replaying the same ticket a second time fails (single-use, mirrored from Cloud)', async () => {
     global.fetch
-        .mockResolvedValueOnce(mockFetchResponse(true, 200, { valid: true, session_id: 's1', user_id: 'u1' }))
-        .mockResolvedValueOnce(mockFetchResponse(false, 401, { valid: false }));
+        .mockResolvedValueOnce(mockFetchResponse(true, 200, {
+            container_id: 'c1', ssh_host: 'h', ssh_port: 22, ssh_username: 'u', ssh_password: 'p',
+        }))
+        .mockResolvedValueOnce(mockFetchResponse(false, 401, { error: 'Invalid or expired ticket' }));
+    const { consumeTerminalTicket } = require('../src/authenticate');
 
-    const first = await authenticateRequest(mockReq({ token: 'one-time-token' }));
-    const second = await authenticateRequest(mockReq({ token: 'one-time-token' }));
+    const first = await consumeTerminalTicket('one-time-ticket');
+    const second = await consumeTerminalTicket('one-time-ticket');
 
-    expect(first).toBe(true);
-    expect(second).toBe(false);
+    expect(first).not.toBeNull();
+    expect(second).toBeNull();
 });

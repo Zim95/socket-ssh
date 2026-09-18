@@ -90,20 +90,24 @@ class EchoHandler extends MessageHandler {
 class SSHConnectHandler extends MessageHandler {
     /*
         This handler is used to connect to the SSH server.
+
+        remotetunelling.md Phase 7: the client no longer supplies ssh_host/ssh_port/ssh_username/
+        ssh_password - those came from an unauthenticated client and let anyone reach ANY host
+        reachable from this pod. The only target this handler will ever connect to is
+        extraParams.sshTarget, which server.js set from the ticket that was actually consumed
+        (src/authenticate.js) before this message could even be dispatched. The client still picks
+        its own ssh_hash (an opaque session id for multiplexing), just not the ssh_hash TO WHICH.
     */
     constructor(clientConnection, data, extraParams={}) {
         super(clientConnection, data, extraParams);
         this.requestHashStore = extraParams.requestHashStore;
         this.connectionSessions = extraParams.connectionSessions;
+        this.sshTarget = extraParams.sshTarget;
     }
 
     getMessageSchema = () => {
         return {
-            ssh_hash: 'string',
-            ssh_host: 'string',
-            ssh_port: 'number',
-            ssh_username: 'string',
-            ssh_password: 'string'
+            ssh_hash: 'string'
         };
     }
 
@@ -111,6 +115,7 @@ class SSHConnectHandler extends MessageHandler {
         try {
             // validate the data and message properties.
             if (!this.isMessageValid()) return { error: `Invalid message format. The required message schema is: ${JSON.stringify(this.getMessageSchema())}`};
+            if (!this.sshTarget) throw new Error('No authorized SSH target for this connection!');
             /**
              * 1. Check if requestHashStore is undefined.
              * 2. Check if the ssh_hash is already in the requestHashStore.
@@ -123,7 +128,7 @@ class SSHConnectHandler extends MessageHandler {
                 const sshChannelObject = new SSHChannel(this.clientConnection);
                 const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
                 this.requestHashStore.addRequestEntry(this.data.ssh_hash, socketSSHClientObject);
-                
+
                 // Track this session for cleanup on disconnect
                 if (this.connectionSessions) {
                     const sessions = this.connectionSessions.get(this.clientConnection);
@@ -136,10 +141,10 @@ class SSHConnectHandler extends MessageHandler {
             // If it existed, we can use it now.
             this.requestHashStore.getRequestEntry(this.data.ssh_hash).connectToSSH(
                 {
-                    host: this.data.ssh_host,
-                    port: this.data.ssh_port,
-                    username: this.data.ssh_username,
-                    password: this.data.ssh_password
+                    host: this.sshTarget.ssh_host,
+                    port: this.sshTarget.ssh_port,
+                    username: this.sshTarget.ssh_username,
+                    password: this.sshTarget.ssh_password
                 }
             );
         } catch (error) {
