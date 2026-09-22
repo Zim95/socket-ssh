@@ -309,26 +309,27 @@ spec:
       # remotetunelling.md Phase 3 - sidecar in the SAME Pod (shares the ngrok-agent container's
       # network namespace) so it can reach ngrok's own inspection API over plain localhost:4040,
       # with nothing else in the cluster (let alone the internet) able to reach that port at all.
+      #
+      # Migration Part 12: no more DEVICE_TOKEN here at all - reports go through Device Agent's
+      # local API instead of calling Cloud directly with this device's own Bearer credential (see
+      # tunnel_registrar's src/device_agent_client.py). DEVICE_ID stays only as a non-credential
+      # identifier for logging. The generation-store volume below is required, not optional - see
+      # src/generation_store.py's own docstring for the incident it prevents from recurring on
+      # every Pod recreation (this Deployment uses strategy: Recreate).
       - name: tunnel-registrar
         image: ${REPO_NAME}/tunnel-registrar:latest
         imagePullPolicy: IfNotPresent
         env:
-        - name: BROWSETERM_CLOUD_API_URL
-          value: "${BROWSETERM_CLOUD_API_URL}"
-        # DEVICE_ID/DEVICE_TOKEN come from device-credentials, synced from Desktop's own Keychain
-        # by desktop/local_stack.py - deliberately NOT the shared browseterm-internal-api-token
-        # Secret every other workload here uses, since the tunnel endpoints are per-device Bearer
-        # auth, not the shared internal-service secret.
+        - name: DEVICE_AGENT_LOCAL_API_URL
+          value: "${DEVICE_AGENT_LOCAL_API_URL}"
         - name: DEVICE_ID
           valueFrom:
             secretKeyRef:
               name: device-credentials
               key: DEVICE_ID
-        - name: DEVICE_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: device-credentials
-              key: DEVICE_TOKEN
+        volumeMounts:
+        - name: tunnel-registrar-generation
+          mountPath: /var/lib/tunnel-registrar
         resources:
           requests:
             memory: "64Mi"
@@ -344,4 +345,24 @@ spec:
           capabilities:
             drop:
             - ALL
+      volumes:
+      - name: tunnel-registrar-generation
+        persistentVolumeClaim:
+          claimName: tunnel-registrar-generation-pvc
       terminationGracePeriodSeconds: 15
+---
+# Tiny (the whole file is a single integer) but real PVC - migration Part 12's replacement for
+# the old 409-resync-from-Cloud safety net (see src/generation_store.py's own docstring). This
+# Deployment uses strategy: Recreate, so the Pod (and an emptyDir/container-local-fs alternative
+# to this PVC) is recreated on every rollout, not just a crash - only a real PersistentVolumeClaim
+# actually survives that.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tunnel-registrar-generation-pvc
+  namespace: ${NAMESPACE}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Mi
