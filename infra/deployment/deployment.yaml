@@ -55,15 +55,6 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
-      # See browseterm-server-local/infra/deployment/deployment.yaml's identical hostAliases
-      # block: on a single-Mac two-cluster local dev setup, BROWSETERM_CLOUD_API_URL's hostname
-      # resolves inside this cluster's own pods to the Mac's own /etc/hosts mapping (127.0.0.1,
-      # for the developer's browser), not the real Cloud cluster - required for the ws_tokens
-      # API call (P11) to work at all from inside browseterm-k3s-local.
-      hostAliases:
-      - ip: "${CLOUD_INGRESS_HOST_IP}"
-        hostnames:
-        - "${CLOUD_INGRESS_HOST}"
       containers:
       - name: socket-ssh
         image: ${REPO_NAME}/socket-ssh:latest
@@ -77,19 +68,15 @@ spec:
           value: "production"
         # P11: no more REDIS_* here - socket-ssh consumes one-time ws_tokens via Cloud's
         # POST /auth/websocket-tokens/consume instead of touching Cloud's Redis directly.
-        - name: BROWSETERM_CLOUD_API_URL
-          value: "${BROWSETERM_CLOUD_API_URL}"
+        # Migration Part 13: no more BROWSETERM_CLOUD_API_URL/DEVICE_TOKEN here either -
+        # src/authenticate.js now consumes a terminal ticket via a gRPC call to Device Agent's
+        # private local API (src/device_agent_client.js), the same ClusterIP-only boundary
+        # tunnel-registrar's sidecar (ngrok-agent Deployment below) already uses. socket-ssh holds
+        # no Cloud credential of any kind any more, not even a device-scoped Bearer token.
+        - name: DEVICE_AGENT_LOCAL_API_URL
+          value: "${DEVICE_AGENT_LOCAL_API_URL}"
         - name: ALLOWED_ORIGINS
           value: "${ALLOWED_ORIGINS_PROD}"
-        # remotetunelling.md Phase 5/7: src/authenticate.js uses this device's own Bearer
-        # credential to consume a terminal ticket via Cloud's internal endpoint - same
-        # device-credentials Secret the tunnel-registrar sidecar (ngrok-agent Deployment below)
-        # already reads, synced from Desktop's Keychain by desktop/local_stack.py.
-        - name: DEVICE_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: device-credentials
-              key: DEVICE_TOKEN
         resources:
           requests:
             memory: "256Mi"

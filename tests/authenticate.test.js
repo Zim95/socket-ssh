@@ -1,78 +1,45 @@
 /*
-    remotetunelling.md Phase 5/7: authenticate.js no longer validates a plain possession-gated
-    websocket token - it consumes a single-use terminal ticket via Cloud's
-    Bearer-device-token-gated /internal/terminal-tickets/consume, using this device's own
-    DEVICE_TOKEN (never the client-supplied query-param token the old flow used).
+    Migration Part 13: authenticate.js consumes a single-use terminal ticket via Device Agent's
+    private local API (device_agent_client.js) instead of calling Cloud directly with a device
+    Bearer token - socket-ssh holds no Cloud credential of any kind any more.
 */
-const originalDeviceToken = process.env.DEVICE_TOKEN;
-
-function mockFetchResponse(ok, status, body) {
-    return {
-        ok,
-        status,
-        json: async () => body,
-    };
-}
+jest.mock('../src/device_agent_client');
+const deviceAgentClient = require('../src/device_agent_client');
 
 beforeEach(() => {
-    jest.resetModules();
-    global.fetch = jest.fn();
-    process.env.DEVICE_TOKEN = 'this-devices-token';
-});
-
-afterEach(() => {
     jest.resetAllMocks();
-    process.env.DEVICE_TOKEN = originalDeviceToken;
 });
 
-test('missing DEVICE_TOKEN returns null without calling Cloud', async () => {
-    delete process.env.DEVICE_TOKEN;
-    const { consumeTerminalTicket } = require('../src/authenticate');
-    const result = await consumeTerminalTicket('some-ticket');
-    expect(result).toBeNull();
-    expect(global.fetch).not.toHaveBeenCalled();
-});
-
-test('valid ticket calls Cloud with the device Bearer token and returns connection info', async () => {
-    global.fetch.mockResolvedValue(
-        mockFetchResponse(true, 200, {
-            container_id: 'c1', ssh_host: '10.42.0.5', ssh_port: 22,
-            ssh_username: 'u', ssh_password: 'p',
-        })
-    );
+test('valid ticket resolves via Device Agent and returns connection info', async () => {
+    deviceAgentClient.consumeTerminalTicket.mockResolvedValue({
+        valid: true, container_id: 'c1', ssh_host: '10.42.0.5', ssh_port: 22, ssh_username: 'u', ssh_password: 'p',
+    });
     const { consumeTerminalTicket } = require('../src/authenticate');
 
     const result = await consumeTerminalTicket('valid-ticket');
 
     expect(result).toEqual({ container_id: 'c1', ssh_host: '10.42.0.5', ssh_port: 22, ssh_username: 'u', ssh_password: 'p' });
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toContain('/internal/terminal-tickets/consume');
-    expect(options.method).toBe('POST');
-    expect(options.headers['Authorization']).toBe('Bearer this-devices-token');
-    expect(JSON.parse(options.body)).toEqual({ ticket: 'valid-ticket' });
+    expect(deviceAgentClient.consumeTerminalTicket).toHaveBeenCalledWith('valid-ticket');
 });
 
-test('Cloud rejects the ticket (401) returns null', async () => {
-    global.fetch.mockResolvedValue(mockFetchResponse(false, 401, { error: 'Invalid or expired ticket' }));
+test('Device Agent reports an invalid ticket returns null', async () => {
+    deviceAgentClient.consumeTerminalTicket.mockResolvedValue({ valid: false });
     const { consumeTerminalTicket } = require('../src/authenticate');
     const result = await consumeTerminalTicket('expired-ticket');
     expect(result).toBeNull();
 });
 
-test('network failure reaching Cloud returns null, does not throw', async () => {
-    global.fetch.mockRejectedValue(new Error('connection refused'));
+test('Device Agent unreachable returns null, does not throw', async () => {
+    deviceAgentClient.consumeTerminalTicket.mockResolvedValue({ valid: false });
     const { consumeTerminalTicket } = require('../src/authenticate');
     const result = await consumeTerminalTicket('any-ticket');
     expect(result).toBeNull();
 });
 
 test('replaying the same ticket a second time fails (single-use, mirrored from Cloud)', async () => {
-    global.fetch
-        .mockResolvedValueOnce(mockFetchResponse(true, 200, {
-            container_id: 'c1', ssh_host: 'h', ssh_port: 22, ssh_username: 'u', ssh_password: 'p',
-        }))
-        .mockResolvedValueOnce(mockFetchResponse(false, 401, { error: 'Invalid or expired ticket' }));
+    deviceAgentClient.consumeTerminalTicket
+        .mockResolvedValueOnce({ valid: true, container_id: 'c1', ssh_host: 'h', ssh_port: 22, ssh_username: 'u', ssh_password: 'p' })
+        .mockResolvedValueOnce({ valid: false });
     const { consumeTerminalTicket } = require('../src/authenticate');
 
     const first = await consumeTerminalTicket('one-time-ticket');

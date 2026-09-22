@@ -61,8 +61,10 @@ spec:
             memory: 1Gi
         env:
         # P11: no more REDIS_* here - see the identical note in infra/deployment/deployment.yaml.
-        - name: BROWSETERM_CLOUD_API_URL
-          value: "${BROWSETERM_CLOUD_API_URL}"
+        # Migration Part 13: no more BROWSETERM_CLOUD_API_URL/DEVICE_TOKEN here either - terminal
+        # tickets are consumed via Device Agent's local API instead of calling Cloud directly.
+        - name: DEVICE_AGENT_LOCAL_API_URL
+          value: "${DEVICE_AGENT_LOCAL_API_URL}"
         - name: ALLOWED_ORIGINS
           value: "${ALLOWED_ORIGINS_DEV}"
         volumeMounts:

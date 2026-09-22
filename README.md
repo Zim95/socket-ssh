@@ -34,7 +34,10 @@ Make sure you have docker installed. Works with docker desktop for mac.
     NAMESPACE=<your-namespace>
     HOST_DIR=<your-working-directory>
     # CLOUD (P11 - no more REDIS_* here, see the note above)
-    BROWSETERM_CLOUD_API_URL=http://browseterm.cloud.com:9999
+    # Migration Part 13: no more BROWSETERM_CLOUD_API_URL/DEVICE_TOKEN - terminal tickets are
+    # consumed via a gRPC call to Device Agent's private local API instead of calling Cloud
+    # directly.
+    DEVICE_AGENT_LOCAL_API_URL=browseterm-device-agent-service.browseterm.svc.cluster.local:50061
     # SOCKET-SSH CONFIG
     SOCKET_SSH_HOST=socket-ssh.local.com
     # ALLOWED ORIGINS

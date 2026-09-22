@@ -13,7 +13,7 @@ dev_setup:
 		"$(HOST_DIR)" \
 		"$(REPO_NAME)" \
 		"$(SOCKET_SSH_HOST)" \
-		"$(BROWSETERM_CLOUD_API_URL)" \
+		"$(DEVICE_AGENT_LOCAL_API_URL)" \
 		"$(ALLOWED_ORIGINS_DEV)"
 
 dev_teardown:
@@ -28,10 +28,8 @@ prod_setup:
 		"$(NAMESPACE)" \
 		"$(REPO_NAME)" \
 		"$(SOCKET_SSH_HOST)" \
-		"$(BROWSETERM_CLOUD_API_URL)" \
-		"$(ALLOWED_ORIGINS_PROD)" \
-		"$(CLOUD_INGRESS_HOST)" \
-		"$(CLOUD_INGRESS_HOST_IP)"
+		"$(DEVICE_AGENT_LOCAL_API_URL)" \
+		"$(ALLOWED_ORIGINS_PROD)"
 
 prod_teardown:
 	./scripts/deployment/teardown.sh $(NAMESPACE)
