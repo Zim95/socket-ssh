@@ -58,7 +58,14 @@ spec:
       containers:
       - name: socket-ssh
         image: ${REPO_NAME}/socket-ssh:latest
-        imagePullPolicy: IfNotPresent
+        # Always, not IfNotPresent (2026-09-25): a `:latest` tag makes IfNotPresent a real bug,
+        # not just a slower default - once any image with this tag is cached on the node,
+        # `IfNotPresent` never re-pulls a freshly-pushed rebuild, no matter how many times the
+        # Deployment is rolled restarted. Caught live: this is exactly how socket-ssh kept running
+        # pre-Part-13 code (still hitting a Redis that no longer exists) for days after the
+        # Redis-removal migration merged - nothing ever forced a re-pull. Matches
+        # browseterm-device-agent's own manifest, which already uses Always for the same reason.
+        imagePullPolicy: Always
         ports:
         - name: wss
           containerPort: 8000
@@ -305,7 +312,9 @@ spec:
       # every Pod recreation (this Deployment uses strategy: Recreate).
       - name: tunnel-registrar
         image: ${REPO_NAME}/tunnel-registrar:latest
-        imagePullPolicy: IfNotPresent
+        # Always, not IfNotPresent - see the socket-ssh container's own comment above for why a
+        # `:latest` tag makes IfNotPresent a real bug here too, not just a slower default.
+        imagePullPolicy: Always
         env:
         - name: DEVICE_AGENT_LOCAL_API_URL
           value: "${DEVICE_AGENT_LOCAL_API_URL}"
