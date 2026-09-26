@@ -7,6 +7,7 @@ class SSHChannel {
         this.websocket = websocket;
         this.ssh = new Client();
         this.stream = null;
+        this._listenersAttached = false;
     }
 
     getSSHShell = () => {
@@ -68,7 +69,15 @@ class SSHChannel {
         /*
             Map the events on this.ssh and return it.
             This is the SSH Client which can be used to connect to a server.
+
+            Defense in depth (2026-09-26): idempotent - a second call must never attach a
+            duplicate set of listeners onto the same underlying ssh2.Client. Each SSHChannel is
+            now only ever used for a single connect attempt (handler.js's SSHConnectHandler
+            always creates a fresh SSHChannel per sshConnect, never reuses one), but this guard
+            keeps that invariant even if something else calls it more than once.
         */
+        if (this._listenersAttached) return this.ssh;
+        this._listenersAttached = true;
         this.ssh.on('ready', async () => await this.readyHandler());
         this.ssh.on('close', () => this.closeHandler());
         this.ssh.on('error', (error) => this.errorHandler(error));

@@ -118,28 +118,48 @@ class SSHConnectHandler extends MessageHandler {
             if (!this.sshTarget) throw new Error('No authorized SSH target for this connection!');
             /**
              * 1. Check if requestHashStore is undefined.
-             * 2. Check if the ssh_hash is already in the requestHashStore.
-             * 3. If it is not, then we need to create a new one.
-             * 4. If it is, then we can use it to connect to the SSH server.
+             * 2. Check if the ssh_hash already has an entry from an earlier sshConnect for this
+             *    same session (the client generates one ssh_hash per terminal page load and
+             *    reuses it across every reconnect attempt - src/handler.js's own frontend
+             *    counterpart, terminalpage.js).
+             * 3. Always create a FRESH SSH Channel/ssh2.Client for this connect - never reuse an
+             *    existing one.
+             *
+             * Bug fixed 2026-09-26: this used to call connectToSSH() on whatever entry already
+             * existed for the hash, reusing the SAME ssh2.Client instance across repeated
+             * sshConnect messages (a real, observed pattern: the browser retries with the same
+             * ssh_hash after a failed/dropped attempt). ssh2's Client is not designed to have
+             * .connect() called a second time on an already-used instance - reproduced live as a
+             * contradictory "Timed out while waiting for handshake" immediately followed by "SSH
+             * CONNECTION ESTABLISHED" then "SSH CONNECTION CLOSED" for the SAME logical attempt.
+             * A retry must always get a genuinely fresh Client, exactly like the very first
+             * sshConnect for a hash already does - so any stale entry is torn down here first.
              */
             if (this.requestHashStore === undefined) throw new Error('Request hash store needs to exist!');
-            if (this.requestHashStore.getRequestEntry(this.data.ssh_hash) === undefined) {
-                // create a new SSH Channel.
-                const sshChannelObject = new SSHChannel(this.clientConnection);
-                const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
-                this.requestHashStore.addRequestEntry(this.data.ssh_hash, socketSSHClientObject);
+            const existingEntry = this.requestHashStore.getRequestEntry(this.data.ssh_hash);
+            if (existingEntry !== undefined) {
+                try {
+                    existingEntry.close();
+                } catch (closeError) {
+                    logger.error({ err: closeError, ssh_hash: this.data.ssh_hash }, 'Error closing stale SSH session before reconnect');
+                }
+                this.requestHashStore.removeRequestEntry(this.data.ssh_hash);
+            }
 
-                // Track this session for cleanup on disconnect
-                if (this.connectionSessions) {
-                    const sessions = this.connectionSessions.get(this.clientConnection);
-                    if (sessions) {
-                        sessions.add(this.data.ssh_hash);
-                    }
+            // create a new SSH Channel.
+            const sshChannelObject = new SSHChannel(this.clientConnection);
+            const socketSSHClientObject = new SocketSSHClient(sshChannelObject);
+            this.requestHashStore.addRequestEntry(this.data.ssh_hash, socketSSHClientObject);
+
+            // Track this session for cleanup on disconnect
+            if (this.connectionSessions) {
+                const sessions = this.connectionSessions.get(this.clientConnection);
+                if (sessions) {
+                    sessions.add(this.data.ssh_hash);
                 }
             }
-            // now in both ways, we have this.requestHashStore[this.data.ssh_hash] set. If it didnt exist, we created it.
-            // If it existed, we can use it now.
-            this.requestHashStore.getRequestEntry(this.data.ssh_hash).connectToSSH(
+
+            socketSSHClientObject.connectToSSH(
                 {
                     host: this.sshTarget.ssh_host,
                     port: this.sshTarget.ssh_port,
