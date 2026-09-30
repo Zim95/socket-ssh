@@ -1,9 +1,9 @@
 # Socket-SSH
 A websocket interface to SSH servers.
 
-## P11 - no more direct Redis access
+## No more direct Redis access
 
-As of P11 (see `~/browseterm/p.md`'s "P11" section), `src/authenticate.js` no longer talks to
+`src/authenticate.js` no longer talks to
 Redis directly to validate/consume the one-time WebSocket token a client connects with - it calls
 Cloud's `POST /auth/websocket-tokens/consume` (public but possession-gated: holding a valid
 one-time token IS the authorization, same pattern P07 established for OAuth handoff/device-
